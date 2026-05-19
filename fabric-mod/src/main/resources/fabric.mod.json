@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "mcyt",
+  "version": "${version}",
+  "name": "Minecraft YouTube Player",
+  "description": "Plays YouTube audio and syncs with parties.",
+  "authors": [
+    "David"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/mcyt/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.mcyt.client.McytClientMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.2",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

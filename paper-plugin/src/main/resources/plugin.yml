@@ -1,0 +1,8 @@
+name: McytPlugin
+version: 1.0.0
+main: com.mcyt.server.McytPlugin
+api-version: '1.21'
+commands:
+  mcyt:
+    description: MCYT Plugin commands
+    usage: /mcyt
