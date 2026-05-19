@@ -15,7 +15,7 @@ repositories {
 dependencies {
     minecraft "com.mojang:minecraft:26.1.2"
     mappings "net.fabricmc:yarn:26.1.2+build.1:v2"
-    modImplementation "net.fabricmc:fabric-loader:0.16.2"
+    modImplementation "net.fabricmc:fabric-loader:0.19.2"
     modImplementation "net.fabricmc.fabric-api:fabric-api:0.102.0+1.21.1"
 
     // Lavaplayer fork that is actively maintained (dev.arbjerg.lavaplayer)
