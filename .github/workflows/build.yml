@@ -1,0 +1,80 @@
+name: Build MCYT Projects
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-mod:
+    name: Build Fabric Mod
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./mcyt-mod
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      # Grant executable permissions to gradle wrapper if present
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew || true
+        
+      - name: Build Mod
+        run: gradle build --no-daemon
+
+      - name: Upload Mod Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcyt-mod-build
+          path: mcyt-mod/build/libs/*.jar
+
+  build-plugin:
+    name: Build Paper Plugin
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./mcyt-plugin
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      # Grant executable permissions to gradle wrapper if present
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew || true
+
+      - name: Build Plugin
+        run: gradle build --no-daemon
+
+      - name: Upload Plugin Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcyt-plugin-build
+          path: mcyt-plugin/build/libs/*.jar
+          
+      - name: Upload Plugin output as shadow jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcyt-plugin-shadow-build
+          path: mcyt-plugin/build/libs/*-all.jar
+          if-no-files-found: ignore
