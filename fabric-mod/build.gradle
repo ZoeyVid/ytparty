@@ -1,44 +1,87 @@
 plugins {
-    id 'fabric-loom' version '1.16.2'
-    id 'maven-publish'
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'maven-publish'
 }
 
-version = "1.0.0"
-group = "com.mcyt.client"
+version = project.mod_version
+group = project.maven_group
 
 repositories {
-    mavenCentral()
-    maven { url = "https://m2.dv8tion.net/releases" } // Lavaplayer repository if needed, but jitpack is better for forks
-    maven { url = "https://jitpack.io" }
+	// Add repositories to retrieve artifacts from in here.
+	// You should only use this when depending on other mods because
+	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
+	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
+	// for more information about repositories.
+}
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"modid" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+
 }
 
 dependencies {
-    minecraft "com.mojang:minecraft:26.1.2"
-    mappings "net.fabricmc:yarn:26.1.2+build.1:v2"
-    modImplementation "net.fabricmc:fabric-loader:0.19.2"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:0.149.1+26.1.2"
+	// To change the versions see the gradle.properties file
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    // Lavaplayer fork that is actively maintained (dev.arbjerg.lavaplayer)
-    implementation "dev.arbjerg.lavaplayer:lavaplayer:2.2.2"
-    include "dev.arbjerg.lavaplayer:lavaplayer:2.2.2"
-    // Lavaplayer transitive dependencies might need explicit includes if they are not in Java SE
-    // But for a simple test we can try just including lavaplayer and its core dependencies.
+	// Fabric API. This is technically optional, but you probably want it anyway.
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	
 }
 
 processResources {
-    inputs.property "version", project.version
+	def version = project.version
+	inputs.property "version", version
 
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
-    }
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
 }
 
 tasks.withType(JavaCompile).configureEach {
-    it.options.release = 21
+	it.options.release = 25
 }
 
 java {
-    withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+	// if it is present.
+	// If you remove this line, sources will not be generated.
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+jar {
+	def projectName = project.name
+	inputs.property "projectName", projectName
+
+	from("LICENSE") {
+		rename { "${it}_$projectName"}
+	}
+}
+
+// configure the maven publication
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			from components.java
+		}
+	}
+
+	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+	repositories {
+		// Add repositories to publish to here.
+		// Notice: This block does NOT have the same function as the block in the top level.
+		// The repositories here will be used for publishing your artifact, not for
+		// retrieving dependencies.
+	}
 }
