@@ -1,0 +1,8 @@
+name: McytPlugin
+version: '1.0'
+main: com.mcyt.plugin.McytPlugin
+api-version: '1.21' # Spigot/Paper API version base
+commands:
+  party:
+    description: Manage YouTube parties
+    usage: /party <create|join|leave>

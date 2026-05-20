@@ -1,0 +1,12 @@
+{
+  "name": "McytPlugin",
+  "version": "1.0-SNAPSHOT",
+  "main": "com.mcyt.plugin.McytPlugin",
+  "api-version": "1.21",
+  "commands": {
+    "party": {
+      "description": "Party management",
+      "usage": "/party <create|join|leave>"
+    }
+  }
+}

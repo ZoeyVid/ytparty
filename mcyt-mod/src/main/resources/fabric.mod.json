@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "mcyt",
+  "version": "${version}",
+  "name": "MCYT Audio Mod",
+  "description": "YouTube Audio Player and Party Sync",
+  "authors": ["David"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/mcyt/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.mcyt.mod.McytModClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.15.11",
+    "minecraft": "~26.1.2",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
