@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.7-SNAPSHOT'
+    id 'fabric-loom' version '1.16.2'
     id 'maven-publish'
 }
 
@@ -16,7 +16,7 @@ dependencies {
     minecraft "com.mojang:minecraft:26.1.2"
     mappings "net.fabricmc:yarn:26.1.2+build.1:v2"
     modImplementation "net.fabricmc:fabric-loader:0.19.2"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:0.149.1+26.2"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:0.149.1+26.1.2"
 
     // Lavaplayer fork that is actively maintained (dev.arbjerg.lavaplayer)
     implementation "dev.arbjerg.lavaplayer:lavaplayer:2.2.2"
