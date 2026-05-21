@@ -13,7 +13,7 @@ repositories {
 }
 
 dependencies {
-    paperweight.paperDevBundle("26.1.2-R0.1-SNAPSHOT") // Assuming placeholder for future version
+    paperweight.paperDevBundle("26.1.2.build.+")
 }
 
 tasks.withType<JavaCompile> {
