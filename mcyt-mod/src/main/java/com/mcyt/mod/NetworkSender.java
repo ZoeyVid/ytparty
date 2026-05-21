@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -34,8 +34,9 @@ public class NetworkSender {
 
     private static void send(JsonObject json) {
         String data = json.toString();
-        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
         buf.writeBytes(data.getBytes(StandardCharsets.UTF_8));
         ClientPlayNetworking.send(McytModClient.ACTION_CHANNEL, buf);
     }
 }
+
