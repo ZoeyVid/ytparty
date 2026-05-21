@@ -16,6 +16,10 @@ dependencies {
     paperweight.paperDevBundle("26.1.2.build.+")
 }
 
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+}
+
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
 }

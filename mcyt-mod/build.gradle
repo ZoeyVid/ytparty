@@ -23,6 +23,10 @@ dependencies {
 	include 'dev.arbjerg:lavaplayer:2.2.2'
 }
 
+java {
+	toolchain.languageVersion = JavaLanguageVersion.of(25)
+}
+
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+	it.options.release = 25
 }
