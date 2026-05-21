@@ -32,6 +32,8 @@ public class McytModClient implements ClientModInitializer {
     public void onInitializeClient() {
         System.out.println("Initializing MCYT Audio Mod...");
 
+        KeybindInitializer.register();
+
         // Listen to the server
         ClientPlayNetworking.registerGlobalReceiver(SYNC_CHANNEL, (client, handler, buf, responseSender) -> {
             byte[] bytes = new byte[buf.readableBytes()];
