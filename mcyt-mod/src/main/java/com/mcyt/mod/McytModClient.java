@@ -4,14 +4,14 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.nio.charset.StandardCharsets;
 
 public class McytModClient implements ClientModInitializer {
     
-    public static final Identifier SYNC_CHANNEL = Identifier.of("mcyt", "sync");
-    public static final Identifier ACTION_CHANNEL = Identifier.of("mcyt", "action");
+    public static final ResourceLocation SYNC_CHANNEL = ResourceLocation.fromNamespaceAndPath("mcyt", "sync");
+    public static final ResourceLocation ACTION_CHANNEL = ResourceLocation.fromNamespaceAndPath("mcyt", "action");
 
     private static McytModClient instance;
     private AudioEngine audioEngine = new AudioEngine();
@@ -47,5 +47,7 @@ public class McytModClient implements ClientModInitializer {
         });
     }
 }
+
+
 
 
