@@ -1,31 +1,31 @@
 plugins {
-	id 'net.fabricmc.fabric-loom' version '1.16-SNAPSHOT'
-	id 'maven-publish'
+    id 'net.fabricmc.fabric-loom' version '1.16-SNAPSHOT'
+    id 'maven-publish'
 }
 
 version = project.mod_version
 group = project.maven_group
 
 repositories {
-	mavenCentral()
-	maven { url 'https://jitpack.io' }
-	maven { url 'https://maven.lavalink.dev/releases' } // Neueres, gewartetes Repo für Lavaplayer
+    mavenCentral()
+    maven { url 'https://maven.fabricmc.net/' }
+    maven { url 'https://jitpack.io' }
+    maven { url 'https://maven.lavalink.dev/releases' }
 }
 
 dependencies {
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-	// Aktueller Lavaplayer Fork, da der originale von sedmelluq stark veraltet ist
-	implementation 'dev.arbjerg:lavaplayer:2.2.2'
-	include 'dev.arbjerg:lavaplayer:2.2.2'
+    implementation 'dev.arbjerg:lavaplayer:2.2.2'
+    include 'dev.arbjerg:lavaplayer:2.2.2'
 }
 
 java {
-	toolchain.languageVersion = JavaLanguageVersion.of(25)
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 25
+    it.options.release = 25
 }
