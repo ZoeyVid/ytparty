@@ -1,0 +1,5 @@
+# Defaults for newly created parties.
+# A party stays alive as long as at least one member has the 'manage' level.
+default-public: false
+# Level that players get when joining a PUBLIC party: listen | invite | manage
+public-join-level: listen

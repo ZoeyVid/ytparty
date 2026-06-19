@@ -1,0 +1,55 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version '1.15-SNAPSHOT'
+    id 'com.gradleup.shadow' version '9.0.0'
+}
+
+version = project.mod_version
+group = project.maven_group
+base { archivesName = project.archives_base_name }
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.lavalink.dev/releases' }
+    maven { url = 'https://jitpack.io' }
+}
+
+loom {
+    splitEnvironmentSourceSets()
+    mods {
+        ytparty {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+configurations {
+    bundle
+    clientImplementation.extendsFrom bundle
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    bundle "dev.arbjerg:lavaplayer:${project.lavaplayer_version}"
+    bundle "dev.lavalink.youtube:common:${project.youtube_source_version}"
+}
+
+shadowJar {
+    configurations = [project.configurations.bundle]
+    from sourceSets.main.output
+    from sourceSets.client.output
+    archiveClassifier = 'bundle'
+    mergeServiceFiles()
+}
+
+tasks.register('serverJar', Jar) {
+    dependsOn classes
+    archiveClassifier = 'server'
+    from sourceSets.main.output
+    from('serverMeta') { into '/' }
+}
+assemble.dependsOn serverJar

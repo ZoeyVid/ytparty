@@ -1,0 +1,20 @@
+{
+    "schemaVersion": 1,
+    "id": "ytparty",
+    "version": "0.1.0",
+    "name": "YT Party",
+    "description": "YouTube audio player (client) with party sync. Same jar acts as the server-side host on a Fabric server.",
+    "authors": ["Zoey"],
+    "license": "MIT",
+    "environment": "*",
+    "entrypoints": {
+        "main": ["de.zoeyvid.ytparty.YtPartyMain"],
+        "client": ["de.zoeyvid.ytparty.YtPartyClient"]
+    },
+    "depends": {
+        "fabricloader": ">=0.18.4",
+        "minecraft": "~26.1",
+        "java": ">=25",
+        "fabric-api": "*"
+    }
+}

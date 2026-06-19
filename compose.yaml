@@ -1,0 +1,13 @@
+# Relay only. Set YTPARTY_RELAY_PASSWORD (strong, printable ASCII) e.g. via a .env file.
+services:
+  relay:
+    build: ./relay
+    image: ytparty-relay
+    restart: unless-stopped
+    ports:
+      - "25599:25599"
+    environment:
+      YTPARTY_RELAY_PASSWORD: ${YTPARTY_RELAY_PASSWORD:?set a strong ASCII password}
+      # YTPARTY_RELAY_PORT: "25599"
+      # YTPARTY_DEFAULT_PUBLIC: "false"
+      # YTPARTY_PUBLIC_JOIN_LEVEL: "listen"  # listen | invite | manage

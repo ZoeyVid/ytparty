@@ -1,0 +1,19 @@
+{
+    "schemaVersion": 1,
+    "id": "ytparty",
+    "version": "0.1.0",
+    "name": "YT Party (Server)",
+    "description": "Server-side party sync for YT Party. No audio libraries — dedicated servers never play audio.",
+    "authors": ["Zoey"],
+    "license": "MIT",
+    "environment": "server",
+    "entrypoints": {
+        "main": ["de.zoeyvid.ytparty.YtPartyMain"]
+    },
+    "depends": {
+        "fabricloader": ">=0.18.4",
+        "minecraft": "~26.1",
+        "java": ">=25",
+        "fabric-api": "*"
+    }
+}
