@@ -19,7 +19,10 @@ crypto on **both** ends (Go relay + Java `RelayClient`).
 
 ## Relay crypto (hybrid, forward-secret, post-quantum)
 
-- **PSK key:** `K = PBKDF2-HMAC-SHA256(psk, "ytparty-relay-v1", 600000, 32)`.
+- **PSK key:** `K = PBKDF2-HMAC-SHA256(psk, "ytparty-relay-v1", 600000, 32)`. The relay uses Go 1.24's
+  standard-library `crypto/pbkdf2`; the mod hand-rolls the same construction on top of JDK's
+  `HmacSHA256` (JDK's own `PBKDF2WithHmacSHA256` would re-encode the password and diverge). Both produce
+  identical bytes for an ASCII PSK, which the live handshake verifies — a mismatch would fail the GCM tag.
 - **Per-connection handshake (hybrid X25519 + ML-KEM-768):**
   - client → `cn(16) ‖ X25519-pub(32) ‖ ML-KEM-768 encapsulation key(1184)`
   - relay → `sn(16) ‖ X25519-pub(32) ‖ ML-KEM-768 ciphertext(1088)`
@@ -109,5 +112,6 @@ crypto/permission paths are cross-checked.
   per-connection message-rate token bucket. A client that floods messages or an IP that opens too many
   connections is dropped, not allowed to exhaust the relay. For an internet-exposed deployment a firewall
   or reverse proxy in front is still sensible; the relay binds `0.0.0.0` by default.
-- No official TLS/Noise framework — a hand-built but cross-checked construction from stdlib primitives.
+- No official TLS/Noise framework — a hand-assembled but cross-checked construction from stdlib
+  primitives (stdlib KDF/KEM/AEAD on each side; the framing and handshake glue are ours).
   If you want something more "official": TLS 1.3 with the `X25519MLKEM768` group.

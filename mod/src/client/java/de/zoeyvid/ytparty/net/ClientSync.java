@@ -47,6 +47,12 @@ public final class ClientSync {
                     message("Party invite from " + from + " (open J to join)");
                 }
                 case SyncProtocol.S2C_MESSAGE -> message(d.readUTF());
+                case SyncProtocol.S2C_PUBLIC_LIST -> {
+                    int count = d.readInt();
+                    java.util.List<SyncProtocol.PartyEntry> entries = new java.util.ArrayList<>(count);
+                    for (int i = 0; i < count; i++) entries.add(new SyncProtocol.PartyEntry(d.readUTF(), d.readInt(), d.readUTF()));
+                    PlayerController.INSTANCE.onPublicList(entries);
+                }
                 default -> {}
             }
         } catch (IOException ignored) {}

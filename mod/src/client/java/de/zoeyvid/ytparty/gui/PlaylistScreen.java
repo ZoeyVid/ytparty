@@ -1,5 +1,6 @@
 package de.zoeyvid.ytparty.gui;
 
+import de.zoeyvid.ytparty.ClientConfig;
 import de.zoeyvid.ytparty.PlayerController;
 import de.zoeyvid.ytparty.net.SyncProtocol;
 import de.zoeyvid.ytparty.playlist.Track;
@@ -45,7 +46,7 @@ public final class PlaylistScreen extends Screen {
 
         urlField = new EditBox(this.font, left, top, 250, 20, Component.literal("YouTube URL"));
         urlField.setMaxLength(2048);
-        urlField.setHint(Component.literal("YouTube video or playlist URL"));
+        urlField.setHint(Component.literal("YouTube video URL"));
         urlField.setValue(savedUrl);
         addRenderableWidget(urlField);
         addRenderableWidget(Button.builder(Component.literal("Add"), b -> {
@@ -55,18 +56,26 @@ public final class PlaylistScreen extends Screen {
 
         canEdit = !c.inParty() || c.canManage();
         addRenderableWidget(Button.builder(Component.literal(c.paused() ? "Play" : "Pause"), b -> c.togglePause())
-            .bounds(left, top + 26, 80, 20).build()).active = canEdit;
-        addRenderableWidget(Button.builder(Component.literal("Skip"), b -> c.next()).bounds(left + 84, top + 26, 80, 20).build()).active = canEdit;
+            .bounds(left, top + 26, 74, 20).build()).active = canEdit;
+        addRenderableWidget(Button.builder(Component.literal("Skip"), b -> c.next()).bounds(left + 78, top + 26, 60, 20).build()).active = canEdit;
+        addRenderableWidget(Button.builder(Component.literal("\u2299"), b -> {
+            int idx = PlayerController.INSTANCE.currentIndex();
+            if (idx >= 0) { scrollOffset = Math.clamp(idx, 0, Math.max(0, PlayerController.INSTANCE.playlist().size() - MAX_ROWS)); rebuildWidgets(); }
+        }).bounds(left + 142, top + 26, 22, 20).build()).active = c.currentIndex() >= 0;
         addRenderableWidget(new AbstractSliderButton(left + 168, top + 26, 152, 20, Component.literal("Vol " + c.volume()), c.volume() / 200.0) {
             @Override protected void updateMessage() { setMessage(Component.literal("Vol " + (int) (value * 200))); }
             @Override protected void applyValue() { c.setVolume((int) (value * 200)); }
+            @Override public void onRelease(net.minecraft.client.input.MouseButtonEvent e) { super.onRelease(e); ClientConfig.save(); }
         });
 
         timeline = new Timeline(left, top + 52, 320, 20);
         addRenderableWidget(timeline);
 
         addRenderableWidget(Button.builder(Component.literal("Auto-remove played: " + (c.autoRemovePlayed() ? "ON" : "OFF")), b -> c.toggleAutoRemove())
-            .bounds(left, top + 78, 320, 20).build()).active = canEdit;
+            .bounds(left, top + 78, 155, 20).build()).active = canEdit;
+        addRenderableWidget(Button.builder(Component.literal("Repeat: " + (c.repeatOne() ? "ON" : "OFF")), b -> c.toggleRepeat())
+            .bounds(left + 159, top + 78, 76, 20).build()).active = canEdit;
+        addRenderableWidget(Button.builder(Component.literal("SponsorBlock\u2026"), b -> this.minecraft.setScreen(new SponsorBlockScreen())).bounds(left + 239, top + 78, 81, 20).build());
 
         partyRow(c, left, top + 104);
 
@@ -91,11 +100,11 @@ public final class PlaylistScreen extends Screen {
             int row = i;
             int y = listTop + (i - scrollOffset) * 22;
             if (dragging) {
-                addRenderableWidget(new StringWidget(left + 24, y + 6, 280, 12, Component.literal((i == marked ? "\u2261 " : "") + trim(order.get(i).title())), this.font));
+                addRenderableWidget(new StringWidget(left + 24, y + 6, 280, 12, Component.literal((i == marked ? "\u2261 " : "") + trim(order.get(i).title(), 26)), this.font));
                 continue;
             }
             boolean current = i == c.currentIndex();
-            addRenderableWidget(new StringWidget(left + 24, y + 6, 252, 12, Component.literal((current ? "\u266A " : "") + trim(order.get(i).title())), this.font));
+            addRenderableWidget(new StringWidget(left + 24, y + 6, 252, 12, Component.literal((current ? "\u266A " : "") + trackLabel(order.get(i))), this.font));
             if (current) addRenderableWidget(Button.builder(Component.literal(c.paused() ? "\u25B6" : "\u23F8"), b -> c.togglePause()).bounds(left, y, 20, 20).build()).active = canEdit;
             else addRenderableWidget(Button.builder(Component.literal("\u25B6"), b -> c.playIndex(row)).bounds(left, y, 20, 20).build()).active = canEdit;
             addRenderableWidget(Button.builder(Component.literal("\u2715"), b -> c.removeAt(row)).bounds(left + 300, y, 20, 20).build()).active = canEdit;
@@ -156,6 +165,7 @@ public final class PlaylistScreen extends Screen {
     }
 
     private void partyRow(PlayerController c, int left, int y) {
+        boolean relayOn = RelayClient.INSTANCE.connected();
         if (c.inParty()) {
             addRenderableWidget(Button.builder(Component.literal("Party\u2026"), b -> this.minecraft.setScreen(new PartyScreen())).bounds(left, y, 240, 20).build());
             addRenderableWidget(Button.builder(Component.literal("Leave"), b -> c.leaveParty()).bounds(left + 244, y, 76, 20).build());
@@ -163,6 +173,10 @@ public final class PlaylistScreen extends Screen {
             addRenderableWidget(Button.builder(Component.literal("Create"), b -> c.createParty()).bounds(left, y, 110, 20).build());
             addRenderableWidget(Button.builder(Component.literal("Join " + c.pendingInviteId()), b -> c.acceptInvite()).bounds(left + 114, y, 120, 20).build());
             addRenderableWidget(Button.builder(Component.literal("Relay"), b -> this.minecraft.setScreen(new RelayScreen())).bounds(left + 238, y, 82, 20).build());
+        } else if (relayOn) {
+            addRenderableWidget(Button.builder(Component.literal("Create party"), b -> c.createParty()).bounds(left, y, 152, 20).build());
+            addRenderableWidget(Button.builder(Component.literal("Browse\u2026"), b -> this.minecraft.setScreen(new BrowseScreen())).bounds(left + 156, y, 80, 20).build());
+            addRenderableWidget(Button.builder(Component.literal("Relay"), b -> this.minecraft.setScreen(new RelayScreen())).bounds(left + 240, y, 80, 20).build());
         } else {
             addRenderableWidget(Button.builder(Component.literal("Create party"), b -> c.createParty()).bounds(left, y, 235, 20).build());
             addRenderableWidget(Button.builder(Component.literal("Relay"), b -> this.minecraft.setScreen(new RelayScreen())).bounds(left + 239, y, 81, 20).build());
@@ -185,13 +199,9 @@ public final class PlaylistScreen extends Screen {
 
     private String signature() {
         PlayerController c = PlayerController.INSTANCE;
-        StringBuilder sb = new StringBuilder();
-        sb.append(c.inParty()).append('|').append(c.partyId()).append('|').append(c.paused())
-          .append('|').append(c.currentIndex()).append('|').append(c.myLevel())
-          .append('|').append(c.pendingInviteId()).append('|').append(RelayClient.INSTANCE.connected())
-          .append('|').append(c.autoRemovePlayed());
-        for (Track t : c.playlist().view()) sb.append('|').append(t.uri());
-        return sb.toString();
+        return c.inParty() + "|" + c.partyId() + "|" + c.paused() + "|" + c.currentIndex() + "|" + c.myLevel()
+            + "|" + c.pendingInviteId() + "|" + RelayClient.INSTANCE.connected() + "|" + c.autoRemovePlayed()
+            + "|" + c.playlist().version() + "|" + c.publicListVersion();
     }
 
     private final class Timeline extends AbstractSliderButton {
@@ -237,7 +247,14 @@ public final class PlaylistScreen extends Screen {
         return s / 60 + ":" + String.format("%02d", s % 60);
     }
 
-    private String trim(String s) { return s.length() <= 26 ? s : s.substring(0, 25) + "\u2026"; }
+    private String trim(String s, int n) { return s.length() <= n ? s : s.substring(0, n - 1) + "\u2026"; }
+    private String trackLabel(Track t) {
+        if (t.requester().isEmpty()) return trim(t.title(), 26);
+        return trim(t.title(), 16) + " \u2014 by " + trim(t.requester(), 8);
+    }
+
+    @Override
+    public void removed() { ClientConfig.save(); }
 
     @Override
     public boolean isPauseScreen() { return false; }

@@ -171,10 +171,9 @@ public final class RelayClient {
     private static void writeBlob(DataOutputStream d, byte[] b) throws IOException { d.writeShort(b.length); d.write(b); }
 
     private static void writeFrame(OutputStream os, byte[] data) throws IOException {
-        DataOutputStream d = new DataOutputStream(os);
-        d.writeInt(data.length);
-        d.write(data);
-        d.flush();
+        os.write(new byte[]{(byte) (data.length >>> 24), (byte) (data.length >>> 16), (byte) (data.length >>> 8), (byte) data.length});
+        os.write(data);
+        os.flush();
     }
 
     private static byte[] readFrame(DataInputStream in) throws IOException {

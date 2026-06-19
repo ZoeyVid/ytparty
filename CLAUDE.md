@@ -81,10 +81,22 @@ and pass `-Dorg.gradle.java.installations.paths=$JAVA_HOME`. Not needed on a nor
 ## Wire protocol (see `docs/PROTOCOL.md` for the full table)
 
 Raw `DataOutputStream` bytes on `ytparty:sync`; the relay wraps the *same* payload in an encrypted
-frame with a 4-byte big-endian length prefix. C2S ops 0–12 (12 = `SET_AUTOREMOVE`); S2C 0–4
-(0 = `STATE`). `STATE` carries `autoRemovePlayed` (after `currentIndex`) and a per-member `duplicate`
-flag (after `level`); only the relay ever sets `duplicate`, the MC backends always send `false`.
+frame with a 4-byte big-endian length prefix. C2S ops 0–13 (12 = `SET_AUTOREMOVE`, 13 = `LIST_PUBLIC`);
+S2C 0–5 (0 = `STATE`, 5 = `PUBLIC_LIST`). `STATE` carries `autoRemovePlayed` (after `currentIndex`),
+three UTF strings per track (`uri`, `title`, `requester` — server/relay fills requester from sender on
+ADD, never sent by the client), and a per-member `duplicate` flag; only the relay ever sets `duplicate`,
+the MC backends always send `false`. `PUBLIC_LIST` is relay-only; the MC backends ignore op 13.
 Levels: 0 LISTEN, 1 INVITE, 2 MANAGE. Volume is never synced (client-local).
+
+**Auto-remove** (default on, synced): drop a track when it finishes or is skipped to the immediate
+next index; a manual jump removes nothing. Backends apply this on `SET_INDEX` (target == `curIndex+1`
+→ advance → remove current; anything else → jump).
+
+**Drift correction:** among all managers, only the **drift leader** — the manager with the
+lexicographically smallest name — sends `SET_POSITION` every 5 seconds while playing; followers only
+apply the resulting SEEK if they are more than 2 seconds off. Electing a single sender (client-side,
+from the member names, which is order-independent — the relay sends members in random order) avoids
+multiple managers fighting each other; the 2-second threshold avoids constant micro-seeks.
 
 **Auto-remove** (default on, synced): drop a track when it finishes or is skipped to the immediate
 next index; a manual jump removes nothing. Backends apply this on `SET_INDEX` (target == `curIndex+1`
@@ -92,17 +104,21 @@ next index; a manual jump removes nothing. Backends apply this on `SET_INDEX` (t
 
 **Relay-only** identity frame: `blob(name) ‖ blob(uuid) ‖ blob(token)` (each blob = u16 len + bytes);
 ack = `{1} ‖ blob(token)`. First connect sends an empty token, relay issues one (TOFU, RAM-only,
-expires). Relay keys *all* state by **token**, not UUID, so duplicate UUIDs are kept apart and flagged.
+expires). The token is **not persisted to disk on the client** — it lives in RAM only and is lost on
+restart; the client then presents an empty token and the relay issues a new one. Relay keys *all*
+state by **token**, not UUID, so duplicate UUIDs are kept apart and flagged.
 A new connection with an existing live token **replaces** it and keeps membership; a genuine
 disconnect leaves the party.
 
 ## Crypto (relay only — see `docs/SECURITY.md`)
 
-Hand-built from stdlib primitives — **not** TLS. Per connection: ephemeral **X25519 + ML-KEM-768**
+Hand-assembled from stdlib primitives — **not** TLS. Per connection: ephemeral **X25519 + ML-KEM-768**
 hybrid KEM; the PBKDF2-derived PSK is also mixed into the session key, so a wrong PSK fails the GCM
-tag. AES-256-GCM, 12-byte nonce `[dir|000|ctr8BE]`, direction-separated counters. Forward-secret,
-replay-safe. Interop is byte-for-byte Java 25 ↔ Go 1.24. **PSK must be printable ASCII** (Java Latin-1
-vs Go UTF-8 would diverge), enforced on both ends.
+tag. The relay derives the PSK key with Go 1.24's stdlib `crypto/pbkdf2`; the mod hand-rolls the same
+PBKDF2-HMAC-SHA256 (JDK's built-in would re-encode the password and diverge) — both yield identical
+bytes for ASCII PSKs. AES-256-GCM, 12-byte nonce `[dir|000|ctr8BE]`, direction-separated counters.
+Forward-secret, replay-safe. Interop is byte-for-byte Java 25 ↔ Go 1.24. **PSK must be printable ASCII**
+(Java Latin-1 vs Go UTF-8 would diverge), enforced on both ends.
 
 ## Permissions (enforced server-side on all three backends)
 
@@ -114,7 +130,7 @@ parties: a manager toggles public + the join level. Random unguessable party ids
 ## Status
 
 Everything in the current scope is implemented across all backends and builds. Deferred features (with
-effort estimates) are in `docs/planned-features.md`. When adding anything that touches the wire format,
+effort estimates) are in `docs/PLANNED.md`. When adding anything that touches the wire format,
 change it in **all four** places (client mod, plugin, server mod, relay) and keep them byte-compatible.
 
 ## Things that can't be runtime-tested in a headless sandbox

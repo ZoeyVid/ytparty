@@ -72,8 +72,12 @@ connection, your volume, and your solo playlist between sessions.
 |---|---|---|---|
 | `relay.host` | string | *(empty)* | Last relay host. |
 | `relay.port` | int | `25599` | Last relay port. |
-| `relay.token` | string | *(empty)* | Auth token issued by the relay (re-presented to re-authenticate without the password). |
-| `relay.remember-password` | bool | `true` | When on, the relay password is saved too; turn it off in the Relay screen to keep only the token. |
+| `relay.remember-password` | bool | `true` | When on, the relay password is saved; turn it off in the Relay screen to omit it from the file. |
 | `relay.password` | string | *(empty)* | Saved relay password — only present when `relay.remember-password` is `true`. |
+
+> **Note:** The relay auth token lives in RAM only and is intentionally **not** persisted to disk.
+> On restart the client presents no token and the relay issues a new one (TOFU). A token on disk would
+> be an unencrypted credential readable by any process with file access, which is worse than just
+> re-entering the password — so RAM-only is the right trade-off.
 | `volume` | int | `100` | Playback volume (0–200). |
 | `track.count` / `track.N.uri` / `track.N.title` | – | – | Your solo playlist (party playlists live on the backend, not here). |

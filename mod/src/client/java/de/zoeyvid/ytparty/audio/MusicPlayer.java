@@ -45,10 +45,7 @@ public final class MusicPlayer {
     public void resolve(String identifier, BiConsumer<String, String> onResolved, Runnable onFail) {
         manager.loadItem(identifier, new AudioLoadResultHandler() {
             public void trackLoaded(AudioTrack track) { onResolved.accept(identifier, track.getInfo().title); }
-            public void playlistLoaded(AudioPlaylist list) {
-                AudioTrack first = pick(list);
-                onResolved.accept(first.getInfo().uri, first.getInfo().title);
-            }
+            public void playlistLoaded(AudioPlaylist list) { onFail.run(); }
             public void noMatches() { onFail.run(); }
             public void loadFailed(FriendlyException e) { onFail.run(); }
         });

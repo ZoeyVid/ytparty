@@ -25,6 +25,9 @@ public final class ServerProtocol {
     public static final byte C2S_SET_POSITION = 10;
     public static final byte C2S_SET_PUBLIC = 11;
     public static final byte C2S_SET_AUTOREMOVE = 12;
+    public static final byte C2S_REPORT_POSITION = 14;
+    public static final byte C2S_SET_SPONSORBLOCK = 15;
+    public static final byte C2S_SET_REPEAT = 16;
 
     public static final byte S2C_STATE = 0;
     public static final byte S2C_INVITED = 1;
@@ -44,8 +47,10 @@ public final class ServerProtocol {
             d.writeBoolean(party.paused);
             d.writeInt(party.currentIndex);
             d.writeBoolean(party.autoRemovePlayed);
+            d.writeByte(party.sbFlags);
+            d.writeBoolean(party.repeatOne);
             d.writeInt(party.tracks.size());
-            for (Party.TrackRef t : party.tracks) { d.writeUTF(t.uri()); d.writeUTF(t.title()); }
+            for (Party.TrackRef t : party.tracks) { d.writeUTF(t.uri()); d.writeUTF(t.title()); d.writeUTF(t.requester()); }
             d.writeInt(party.members.size());
             for (Map.Entry<UUID, PermissionLevel> e : party.members.entrySet()) {
                 d.writeUTF(nameOf.apply(e.getKey()));

@@ -24,6 +24,7 @@ public final class YtPartyClient implements ClientModInitializer {
             "key.ytparty.open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, KeyMapping.Category.MISC));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            PlayerController.INSTANCE.tick();
             while (open.consumeClick()) client.setScreen(new PlaylistScreen());
         });
 

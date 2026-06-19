@@ -8,18 +8,22 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class Party {
-    public record TrackRef(String uri, String title) {}
+    public record TrackRef(String uri, String title, String requester) {}
+    public record MgrReport(long pos, long at) {}
 
     public final String id;
     public final UUID host;
     public final Map<UUID, PermissionLevel> members = new LinkedHashMap<>();
     public final Map<UUID, PermissionLevel> invites = new HashMap<>();
     public final List<TrackRef> tracks = new ArrayList<>();
+    public final Map<UUID, MgrReport> mgrPos = new HashMap<>();
     public boolean isPublic;
     public PermissionLevel publicJoinLevel;
     public int currentIndex = -1;
     public boolean paused = false;
     public boolean autoRemovePlayed = true;
+    public byte sbFlags = 0x0F;
+    public boolean repeatOne = false;
 
     public Party(String id, UUID host, boolean isPublic, PermissionLevel publicJoinLevel) {
         this.id = id;

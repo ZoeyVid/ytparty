@@ -1,6 +1,7 @@
 package de.zoeyvid.ytparty;
 
 import de.zoeyvid.ytparty.audio.MusicPlayer;
+import de.zoeyvid.ytparty.audio.SponsorBlock;
 import de.zoeyvid.ytparty.net.SyncProtocol;
 import de.zoeyvid.ytparty.playlist.Playlist;
 import de.zoeyvid.ytparty.playlist.Track;
@@ -30,6 +31,13 @@ public final class PlayerController {
     private boolean autoRemovePlayed = true;
     private int volume = 100;
     private String loadedUri;
+    private List<SyncProtocol.PartyEntry> publicParties = List.of();
+    private int publicListVersion;
+    private long lastDriftSyncAt;
+    private byte partySbFlags = SponsorBlock.FLAG_ALL;
+    private boolean repeatOne = false;
+    private List<SponsorBlock.Segment> segments = List.of();
+    private String segmentsUri = "";
 
     private PlayerController() { audio.setOnEnd(this::next); }
 
@@ -53,6 +61,53 @@ public final class PlayerController {
     public String pendingInviteId() { return pendingInviteId; }
     public String pendingInviteFrom() { return pendingInviteFrom; }
     public byte pendingInviteLevel() { return pendingInviteLevel; }
+    public List<SyncProtocol.PartyEntry> publicParties() { return publicParties; }
+    public int publicListVersion() { return publicListVersion; }
+    public void onPublicList(List<SyncProtocol.PartyEntry> list) { publicParties = List.copyOf(list); publicListVersion++; }
+    public void requestPublicList() { if (sink != null) sink.send(SyncProtocol.listPublic()); }
+
+    public byte partySbFlags() { return partySbFlags; }
+    public boolean repeatOne() { return repeatOne; }
+    public void toggleRepeat() {
+        boolean nv = !repeatOne;
+        if (remote()) sink.send(SyncProtocol.setRepeat(nv));
+        else { repeatOne = nv; ClientConfig.save(); }
+    }
+    public void setSponsorBlock(byte flags) {
+        if (inParty) { if (canManage() && sink != null) sink.send(SyncProtocol.setSponsorBlock(flags)); }
+        else ClientConfig.setSbFlags(flags);
+    }
+
+    public void tick() {
+        long now = System.currentTimeMillis();
+        if (inParty && canManage() && !paused && currentIndex >= 0 && sink != null && audio.duration() > 0 && now - lastDriftSyncAt >= 5000) {
+            sink.send(SyncProtocol.reportPosition(audio.position()));
+            lastDriftSyncAt = now;
+        }
+        sponsorBlockTick();
+    }
+
+    private void sponsorBlockTick() {
+        if (paused || currentIndex < 0 || audio.duration() <= 0 || !segmentsUri.equals(loadedUri)) return;
+        byte flags = inParty ? partySbFlags : ClientConfig.sbFlags();
+        if ((flags & SponsorBlock.FLAG_ENABLED) == 0) return;
+        if (inParty && !canManage()) return;
+        long pos = audio.position();
+        for (SponsorBlock.Segment s : segments) {
+            if (SponsorBlock.categoryEnabled(flags, s.category()) && pos >= s.startMs() && pos < s.endMs() - 500) { seekTo(s.endMs()); return; }
+        }
+    }
+
+    private void loadSegments(String uri) {
+        segments = List.of();
+        segmentsUri = uri == null ? "" : uri;
+        if (uri == null) return;
+        String vid = SponsorBlock.videoId(uri);
+        if (vid == null) return;
+        SponsorBlock.fetch(vid, segs -> net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            if (uri.equals(loadedUri)) { segments = segs; segmentsUri = uri; }
+        }));
+    }
 
     public void onInvited(String from, String id, byte level) { pendingInviteFrom = from; pendingInviteId = id; pendingInviteLevel = level; }
     public void acceptInvite() { if (pendingInviteId != null && sink != null) sink.send(SyncProtocol.join(pendingInviteId)); }
@@ -63,8 +118,8 @@ public final class PlayerController {
         if (!url.startsWith("http://") && !url.startsWith("https://")) { if (onDone != null) onDone.run(); return; }
         audio.resolve(url, (uri, title) -> {
             if (remote()) sink.send(SyncProtocol.add(uri, title));
-            else if (!inParty) {
-                playlist.add(new Track(uri, title));
+            else if (!inParty && playlist.size() < 500) {
+                playlist.add(new Track(uri, title, ""));
                 if (currentIndex < 0) setIndexLocal(0);
                 ClientConfig.save();
             }
@@ -101,14 +156,14 @@ public final class PlayerController {
         else if (!inParty) { paused = !paused; audio.setPaused(paused); }
     }
 
-    public void setVolume(int v) { volume = Math.max(0, Math.min(200, v)); audio.setVolume(volume); ClientConfig.save(); }
+    public void setVolume(int v) { volume = Math.clamp(v, 0, 200); audio.setVolume(volume); }
 
     public void seekBy(long ms) {
         if (inParty) { if (canManage() && sink != null) sink.send(SyncProtocol.setPosition(audio.position() + ms)); }
         else audio.seekBy(ms);
     }
 
-    public void applyRemoteSeek(long ms) { audio.setPosition(ms); }
+    public void applyRemoteSeek(long ms) { if (Math.abs(audio.position() - ms) > 3000) audio.setPosition(ms); }
 
     public void seekTo(long ms) {
         if (inParty) { if (canManage() && sink != null) sink.send(SyncProtocol.setPosition(ms)); }
@@ -132,7 +187,11 @@ public final class PlayerController {
     }
 
     public void next() {
-        if (inParty) { if (canManage() && sink != null) sink.send(SyncProtocol.setIndex(currentIndex + 1)); return; }
+        if (inParty) {
+            if (canManage() && sink != null) sink.send(repeatOne ? SyncProtocol.setPosition(0) : SyncProtocol.setIndex(currentIndex + 1));
+            return;
+        }
+        if (repeatOne) { setIndexLocal(currentIndex); return; }
         if (autoRemovePlayed && currentIndex >= 0 && currentIndex < playlist.size()) {
             int at = currentIndex;
             playlist.remove(at);
@@ -151,15 +210,17 @@ public final class PlayerController {
         pendingInviteFrom = null;
         paused = s.paused();
         autoRemovePlayed = s.autoRemovePlayed();
+        partySbFlags = s.sponsorBlockFlags();
+        repeatOne = s.repeatOne();
         playlist.replaceAll(s.tracks());
         currentIndex = s.currentIndex();
         Track t = playlist.get(currentIndex);
-        if (t == null) { loadedUri = null; audio.stop(); return; }
-        if (!t.uri().equals(loadedUri)) { loadedUri = t.uri(); audio.playIdentifier(t.uri(), title -> {}); }
+        if (t == null) { loadedUri = null; segments = List.of(); segmentsUri = ""; audio.stop(); return; }
+        if (!t.uri().equals(loadedUri)) { loadedUri = t.uri(); loadSegments(t.uri()); audio.playIdentifier(t.uri(), title -> {}); }
         audio.setPaused(paused);
     }
 
-    public void onPartyLeft() { inParty = false; myLevel = 2; isPublic = false; autoRemovePlayed = true; members = new ArrayList<>(); partyId = ""; }
+    public void onPartyLeft() { inParty = false; myLevel = 2; isPublic = false; autoRemovePlayed = true; repeatOne = false; members = new ArrayList<>(); partyId = ""; }
 
     public void onWorldDisconnect(boolean stopAudio) {
         onPartyLeft();
@@ -167,11 +228,12 @@ public final class PlayerController {
     }
 
     private void setIndexLocal(int i) {
-        if (i < 0 || i >= playlist.size()) { currentIndex = -1; loadedUri = null; audio.stop(); return; }
+        if (i < 0 || i >= playlist.size()) { currentIndex = -1; loadedUri = null; segments = List.of(); segmentsUri = ""; audio.stop(); return; }
         currentIndex = i;
         Track t = playlist.get(i);
         loadedUri = t.uri();
         paused = false;
+        loadSegments(t.uri());
         audio.playIdentifier(t.uri(), title -> {});
         audio.setPaused(false);
     }

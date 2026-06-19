@@ -61,9 +61,9 @@ public final class PartyScreen extends Screen {
             inviteField.setHint(Component.literal("Player name"));
             inviteField.setValue(savedInvite);
             addRenderableWidget(inviteField);
-            addRenderableWidget(Button.builder(Component.literal(PlaylistScreen.levelName(inviteLevel)), b -> {
+            addRenderableWidget(Button.builder(Component.literal("as: " + PlaylistScreen.levelName(inviteLevel)), b -> {
                 inviteLevel = (byte) ((inviteLevel + 1) % (c.myLevel() + 1));
-                b.setMessage(Component.literal(PlaylistScreen.levelName(inviteLevel)));
+                b.setMessage(Component.literal("as: " + PlaylistScreen.levelName(inviteLevel)));
             }).bounds(left + 154, y, 90, 20).build());
             addRenderableWidget(Button.builder(Component.literal("Invite"), b -> {
                 String n = inviteField.getValue().trim();

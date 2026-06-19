@@ -1,13 +1,5 @@
-// YT Party relay: password-gated, AES-256-GCM encrypted TCP relay that syncs
-// listening parties for clients whose Minecraft server has neither the Paper
-// plugin nor the Fabric server mod. Standard library only, no external modules.
-//
-// Clients are identified by a relay-issued token (trust on first use, kept in
-// RAM only): the relay hands a fresh token to a client that presents none, and
-// recognizes a returning client by the token it persisted. Parties, members and
-// connections are keyed by token, so two clients may share a Minecraft UUID and
-// still be distinct members; members sharing a claimed UUID are flagged so the
-// client can highlight them.
+// YT Party relay: password-gated, AES-256-GCM encrypted TCP relay.
+// Standard library only, no external modules.
 //
 // Config via environment:
 //
@@ -16,9 +8,6 @@
 //	YTPARTY_RELAY_PORT        bind port (default 25599)
 //	YTPARTY_DEFAULT_PUBLIC    new parties public by default (default false)
 //	YTPARTY_PUBLIC_JOIN_LEVEL listen|invite|manage (default listen)
-//
-// Connection cap and rate limits are fixed sensible defaults (see the const
-// block below) and intentionally not configurable.
 package main
 
 import (
@@ -30,6 +19,7 @@ import (
 	"encoding/binary"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -45,7 +35,6 @@ const (
 	invite = 1
 	manage = 2
 )
-
 const (
 	maxConns   = 512
 	maxPerIP   = 16
@@ -56,7 +45,6 @@ const (
 	tokenTTL   = time.Hour
 	sweepEvery = 10 * time.Minute
 )
-
 const (
 	cCreate = iota
 	cJoin
@@ -71,14 +59,18 @@ const (
 	cSetPosition
 	cSetPublic
 	cSetAutoRemove
+	cListPublic
+	cReportPosition
+	cSetSponsorBlock
+	cSetRepeat
 )
-
 const (
 	sState = iota
 	sInvited
 	sMessage
 	sLeft
 	sSeek
+	sPublicList
 )
 
 func levelFromName(s string) int {
@@ -91,14 +83,12 @@ func levelFromName(s string) int {
 		return listen
 	}
 }
-
 func lvl(b int) int {
 	if b < listen || b > manage {
 		return listen
 	}
 	return b
 }
-
 func capped(level, mx int) int {
 	if level > mx {
 		return mx
@@ -106,7 +96,6 @@ func capped(level, mx int) int {
 	return level
 }
 
-// ---- byte helpers ----
 type rdr struct {
 	b   []byte
 	i   int
@@ -187,17 +176,24 @@ func (w *wtr) blob(b []byte) {
 }
 func (w *wtr) str(s string) { w.blob([]byte(s)) }
 
-// ---- model ----
+type mgrReport struct {
+	pos int64
+	at  time.Time
+}
+
 type party struct {
 	id         string
 	members    map[string]int
 	invites    map[string]int
-	tracks     [][2][]byte
+	tracks     [][3][]byte
 	isPublic   bool
 	pubJoinLvl int
 	curIndex   int
 	paused     bool
 	autoRemove bool
+	sbFlags    byte
+	repeatOne  bool
+	mgrPos     map[string]mgrReport
 }
 
 func (p *party) level(tok string) int {
@@ -226,7 +222,7 @@ func (p *party) move(from, to int) {
 type conn struct {
 	tok  string
 	uuid string
-	name []byte
+	name string
 	aead cipher.AEAD
 	c    net.Conn
 	out  chan []byte
@@ -235,10 +231,7 @@ type conn struct {
 }
 
 func (cc *conn) stop() {
-	cc.once.Do(func() {
-		close(cc.quit)
-		cc.c.Close()
-	})
+	cc.once.Do(func() { close(cc.quit); cc.c.Close() })
 }
 
 type ipState struct {
@@ -272,7 +265,7 @@ func (r *relay) of(tok string) *party {
 	return nil
 }
 func (r *relay) create(tok string) *party {
-	p := &party{id: r.newID(), members: map[string]int{tok: manage}, invites: map[string]int{}, isPublic: r.defPublic, pubJoinLvl: r.defLevel, curIndex: -1, autoRemove: true}
+	p := &party{id: r.newID(), members: map[string]int{tok: manage}, invites: map[string]int{}, isPublic: r.defPublic, pubJoinLvl: r.defLevel, curIndex: -1, autoRemove: true, sbFlags: 0x0F, mgrPos: map[string]mgrReport{}}
 	r.byID[p.id] = p
 	r.playerToParty[tok] = p.id
 	return p
@@ -285,7 +278,7 @@ func (r *relay) joinParty(tok, pid string) *party {
 	if _, ok := p.members[tok]; ok {
 		return p
 	}
-	name := strings.ToLower(string(r.nameOf(tok)))
+	name := strings.ToLower(r.nameOf(tok))
 	if l, ok := p.invites[name]; ok {
 		delete(p.invites, name)
 		p.members[tok] = l
@@ -328,12 +321,11 @@ func (r *relay) finish(p *party) *leaveRes {
 	return &leaveRes{p, disbanded}
 }
 
-// ---- io ----
-func (r *relay) nameOf(tok string) []byte {
+func (r *relay) nameOf(tok string) string {
 	if c, ok := r.conns[tok]; ok {
 		return c.name
 	}
-	return []byte("?")
+	return "?"
 }
 func (r *relay) uuidOf(tok string) string {
 	if c, ok := r.conns[tok]; ok {
@@ -341,19 +333,19 @@ func (r *relay) uuidOf(tok string) string {
 	}
 	return tok
 }
-func (r *relay) memberByName(p *party, name []byte) string {
-	want := strings.ToLower(string(name))
+func (r *relay) memberByName(p *party, name string) string {
+	want := strings.ToLower(name)
 	for tok := range p.members {
-		if strings.ToLower(string(r.nameOf(tok))) == want {
+		if strings.ToLower(r.nameOf(tok)) == want {
 			return tok
 		}
 	}
 	return ""
 }
-func (r *relay) onlineByName(name []byte) string {
-	want := strings.ToLower(string(name))
+func (r *relay) onlineByName(name string) string {
+	want := strings.ToLower(name)
 	for tok, c := range r.conns {
-		if strings.ToLower(string(c.name)) == want {
+		if strings.ToLower(c.name) == want {
 			return tok
 		}
 	}
@@ -370,7 +362,6 @@ func (r *relay) send(tok string, payload []byte) {
 		c.stop()
 	}
 }
-
 func (r *relay) writer(cc *conn) {
 	var ctr uint64
 	for {
@@ -401,14 +392,17 @@ func (r *relay) stateBytes(p *party, viewer string) []byte {
 	w.boolean(p.paused)
 	w.i32(p.curIndex)
 	w.boolean(p.autoRemove)
+	w.u8(int(p.sbFlags))
+	w.boolean(p.repeatOne)
 	w.i32(len(p.tracks))
 	for _, t := range p.tracks {
 		w.blob(t[0])
 		w.blob(t[1])
+		w.blob(t[2])
 	}
 	w.i32(len(p.members))
 	for tok, l := range p.members {
-		w.blob(r.nameOf(tok))
+		w.str(r.nameOf(tok))
 		w.u8(l)
 		w.boolean(counts[r.uuidOf(tok)] > 1)
 	}
@@ -424,6 +418,7 @@ func (r *relay) afterLeave(res *leaveRes) {
 		return
 	}
 	if res.disbanded {
+		slog.Info("party disbanded", "id", res.p.id)
 		w := &wtr{}
 		w.u8(sLeft)
 		for tok := range res.p.members {
@@ -451,7 +446,7 @@ func (r *relay) onReceive(c *conn, payload []byte) {
 	case cCreate:
 		r.afterLeave(r.leave(tok))
 		p := r.create(tok)
-		log.Printf("party %s created by %s", p.id, c.name)
+		slog.Info("party created", "id", p.id, "by", c.name)
 		r.broadcast(p)
 	case cJoin:
 		pid := string(rd.blob())
@@ -460,20 +455,23 @@ func (r *relay) onReceive(c *conn, payload []byte) {
 		}
 		r.doJoin(tok, pid)
 	case cLeave:
+		if pid, ok := r.playerToParty[tok]; ok {
+			slog.Info("leave", "name", c.name, "party", pid)
+		}
 		res := r.leave(tok)
 		w := &wtr{}
 		w.u8(sLeft)
 		r.send(tok, w.b)
 		r.afterLeave(res)
 	case cInvite:
-		name := rd.blob()
+		name := string(rd.blob())
 		level := rd.u8()
 		if rd.bad {
 			return
 		}
 		r.doInvite(tok, name, lvl(level))
 	case cSetLevel:
-		name := rd.blob()
+		name := string(rd.blob())
 		level := rd.u8()
 		if rd.bad {
 			return
@@ -486,6 +484,26 @@ func (r *relay) onReceive(c *conn, payload []byte) {
 			return
 		}
 		r.doSetPublic(tok, isPublic, lvl(level))
+	case cListPublic:
+		r.doListPublic(tok)
+	case cReportPosition:
+		ms := rd.i64()
+		if rd.bad {
+			return
+		}
+		r.doReport(tok, ms)
+	case cSetSponsorBlock:
+		flags := rd.u8()
+		if rd.bad {
+			return
+		}
+		r.doSetSponsorBlock(tok, byte(flags))
+	case cSetRepeat:
+		v := rd.boolean()
+		if rd.bad {
+			return
+		}
+		r.doSetRepeat(tok, v)
 	default:
 		r.control(tok, byte(op), rd)
 	}
@@ -494,8 +512,9 @@ func (r *relay) onReceive(c *conn, payload []byte) {
 func (r *relay) doJoin(tok, pid string) {
 	p := r.byID[pid]
 	_, isMember := nilGet(p, tok)
-	invited := p != nil && nilInv(p, strings.ToLower(string(r.nameOf(tok))))
+	invited := p != nil && nilInv(p, strings.ToLower(r.nameOf(tok)))
 	if p == nil || !(isMember || invited || p.isPublic) {
+		slog.Info("join rejected", "name", r.nameOf(tok), "party", pid)
 		r.msg(tok, "Cannot join "+pid)
 		return
 	}
@@ -505,7 +524,7 @@ func (r *relay) doJoin(tok, pid string) {
 	}
 	r.afterLeave(r.leave(tok))
 	if jp := r.joinParty(tok, pid); jp != nil {
-		log.Printf("%s joined party %s", r.nameOf(tok), pid)
+		slog.Info("join", "name", r.nameOf(tok), "party", pid)
 		r.broadcast(jp)
 	}
 }
@@ -523,24 +542,23 @@ func nilInv(p *party, name string) bool {
 	_, ok := p.invites[name]
 	return ok
 }
-
-func (r *relay) doInvite(tok string, name []byte, level int) {
+func (r *relay) doInvite(tok, name string, level int) {
 	p := r.of(tok)
 	if p == nil || p.level(tok) < invite {
 		return
 	}
 	g := capped(level, p.level(tok))
-	p.invites[strings.ToLower(string(name))] = g
+	p.invites[strings.ToLower(name)] = g
 	if target := r.onlineByName(name); target != "" {
 		w := &wtr{}
 		w.u8(sInvited)
-		w.blob(r.nameOf(tok))
+		w.str(r.nameOf(tok))
 		w.str(p.id)
 		w.u8(g)
 		r.send(target, w.b)
 	}
 }
-func (r *relay) doSetLevel(tok string, name []byte, level int) {
+func (r *relay) doSetLevel(tok, name string, level int) {
 	p := r.of(tok)
 	if p == nil || p.level(tok) != manage {
 		return
@@ -549,6 +567,7 @@ func (r *relay) doSetLevel(tok string, name []byte, level int) {
 	if target == "" {
 		return
 	}
+	slog.Info("set level", "by", r.nameOf(tok), "target", name, "level", level, "party", p.id)
 	r.afterLeave(r.setLevel(p, target, level))
 }
 func (r *relay) doSetPublic(tok string, isPublic bool, level int) {
@@ -558,6 +577,94 @@ func (r *relay) doSetPublic(tok string, isPublic bool, level int) {
 	}
 	p.isPublic = isPublic
 	p.pubJoinLvl = level
+	slog.Info("set public", "id", p.id, "public", isPublic, "level", level, "by", r.nameOf(tok))
+	r.broadcast(p)
+}
+func (r *relay) doListPublic(tok string) {
+	type entry struct {
+		id      string
+		members int
+		title   string
+	}
+	var pub []entry
+	for _, p := range r.byID {
+		if !p.isPublic {
+			continue
+		}
+		title := ""
+		if p.curIndex >= 0 && p.curIndex < len(p.tracks) {
+			title = string(p.tracks[p.curIndex][1])
+		}
+		pub = append(pub, entry{p.id, len(p.members), title})
+	}
+	slices.SortFunc(pub, func(a, b entry) int { return b.members - a.members })
+	w := &wtr{}
+	w.u8(sPublicList)
+	w.i32(len(pub))
+	for _, e := range pub {
+		w.str(e.id)
+		w.i32(e.members)
+		w.str(e.title)
+	}
+	r.send(tok, w.b)
+}
+
+func (r *relay) doReport(tok string, ms int64) {
+	p := r.of(tok)
+	if p == nil || p.level(tok) != manage {
+		return
+	}
+	p.mgrPos[tok] = mgrReport{pos: ms, at: time.Now()}
+	r.driftSeek(p)
+}
+
+func (r *relay) driftSeek(p *party) {
+	now := time.Now()
+	var vals []int64
+	for tok, rep := range p.mgrPos {
+		if p.members[tok] != manage || now.Sub(rep.at) > 15*time.Second {
+			delete(p.mgrPos, tok)
+			continue
+		}
+		pos := rep.pos
+		if !p.paused {
+			pos += now.Sub(rep.at).Milliseconds()
+		}
+		vals = append(vals, pos)
+	}
+	if len(vals) == 0 {
+		return
+	}
+	slices.Sort(vals)
+	n := len(vals)
+	med := vals[n/2]
+	if n%2 == 0 {
+		med = (vals[n/2-1] + vals[n/2]) / 2
+	}
+	w := &wtr{}
+	w.u8(sSeek)
+	w.i64(med)
+	for m := range p.members {
+		r.send(m, w.b)
+	}
+}
+
+func (r *relay) doSetSponsorBlock(tok string, flags byte) {
+	p := r.of(tok)
+	if p == nil || p.level(tok) != manage {
+		return
+	}
+	p.sbFlags = flags & 0x0F
+	slog.Info("set sponsorblock", "party", p.id, "flags", p.sbFlags)
+	r.broadcast(p)
+}
+
+func (r *relay) doSetRepeat(tok string, on bool) {
+	p := r.of(tok)
+	if p == nil || p.level(tok) != manage {
+		return
+	}
+	p.repeatOne = on
 	r.broadcast(p)
 }
 
@@ -572,15 +679,15 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 	}
 	switch int(op) {
 	case cAdd:
-		uri := capBytes(rd.blob(), 1000)
+		uri := rd.blob()
 		title := capBytes(rd.blob(), 200)
-		if rd.bad {
+		if rd.bad || len(uri) == 0 || len(uri) > 1000 {
 			return
 		}
 		if len(p.tracks) >= 500 {
 			return
 		}
-		p.tracks = append(p.tracks, [2][]byte{uri, title})
+		p.tracks = append(p.tracks, [3][]byte{uri, title, []byte(r.nameOf(tok))})
 		if p.curIndex < 0 {
 			p.curIndex = 0
 		}
@@ -623,6 +730,7 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 			p.curIndex = max(-1, min(i, len(p.tracks)-1))
 		}
 		p.paused = false
+		clear(p.mgrPos)
 	case cSetPaused:
 		v := rd.boolean()
 		if rd.bad {
@@ -640,6 +748,7 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		if rd.bad {
 			return
 		}
+		clear(p.mgrPos)
 		w := &wtr{}
 		w.u8(sSeek)
 		w.i64(ms)
@@ -660,7 +769,6 @@ func capBytes(b []byte, max int) []byte {
 	return b[:max]
 }
 
-// ---- framing + connection ----
 func writeFrame(c net.Conn, b []byte) error {
 	buf := make([]byte, 4+len(b))
 	binary.BigEndian.PutUint32(buf, uint32(len(b)))
@@ -696,7 +804,7 @@ func (r *relay) admit(c net.Conn) (string, bool) {
 	st.bucket = min(float64(ipBurst), st.bucket+now.Sub(st.last).Seconds()*ipRefill)
 	st.last = now
 	if r.activeConns >= maxConns || st.conns >= maxPerIP || st.bucket < 1 {
-		log.Printf("rejected %s (conns=%d ip=%d bucket=%.1f)", ip, r.activeConns, st.conns, st.bucket)
+		slog.Warn("rejected", "ip", ip, "conns", r.activeConns, "ipConns", st.conns, "bucket", st.bucket)
 		return "", false
 	}
 	st.bucket--
@@ -750,10 +858,7 @@ func (r *relay) handle(c net.Conn) {
 	if _, err := rand.Read(sn); err != nil {
 		return
 	}
-	msg2 := make([]byte, 0, 16+32+len(ct))
-	msg2 = append(msg2, sn...)
-	msg2 = append(msg2, xs.PublicKey().Bytes()...)
-	msg2 = append(msg2, ct...)
+	msg2 := append(append(append(make([]byte, 0, 16+32+len(ct)), sn...), xs.PublicKey().Bytes()...), ct...)
 	if err := writeFrame(c, msg2); err != nil {
 		return
 	}
@@ -764,19 +869,21 @@ func (r *relay) handle(c net.Conn) {
 	}
 	id, err := g.Open(nil, nonce(0, 0), encID, nil)
 	if err != nil {
-		return // wrong PSK or tampering
+		slog.Warn("auth failed", "ip", ip)
+		return
 	}
 	c.SetReadDeadline(time.Time{})
 	rd := &rdr{b: id}
-	name := rd.blob()
+	name := string(rd.blob())
 	uuid := string(rd.blob())
 	token := string(rd.blob())
-	if rd.bad || uuid == "" {
+	if rd.bad || name == "" || uuid == "" {
 		return
 	}
 
 	r.mu.Lock()
-	if token == "" || r.tokens[token].IsZero() {
+	newToken := token == "" || r.tokens[token].IsZero()
+	if newToken {
 		token = r.newToken()
 	}
 	r.tokens[token] = time.Now()
@@ -789,10 +896,15 @@ func (r *relay) handle(c net.Conn) {
 	old := r.conns[token]
 	r.conns[token] = cc
 	r.mu.Unlock()
+	tokenKind := "new"
+	if !newToken {
+		tokenKind = "resume"
+	}
 	if old != nil {
 		old.stop()
+		tokenKind = "replace"
 	}
-	log.Printf("connect: %s from %s", name, ip)
+	slog.Info("connect", "name", name, "ip", ip, "token", tokenKind)
 	r.mu.Lock()
 	if p := r.of(token); p != nil {
 		r.send(token, r.stateBytes(p, token))
@@ -811,7 +923,7 @@ func (r *relay) handle(c net.Conn) {
 		bucket = min(float64(msgBurst), bucket+now.Sub(last).Seconds()*msgRate)
 		last = now
 		if bucket < 1 {
-			log.Printf("flood: dropping %s", name)
+			slog.Warn("flood", "name", name)
 			break
 		}
 		bucket--
@@ -826,7 +938,7 @@ func (r *relay) handle(c net.Conn) {
 	}
 	cc.stop()
 	r.drop(cc)
-	log.Printf("disconnect: %s", name)
+	slog.Info("disconnect", "name", name)
 }
 
 func (r *relay) drop(cc *conn) {
@@ -839,29 +951,51 @@ func (r *relay) drop(cc *conn) {
 	}
 }
 
-func (r *relay) sweepTokens() {
-	for range time.Tick(sweepEvery) {
-		now := time.Now()
-		r.mu.Lock()
-		for tok, seen := range r.tokens {
-			if r.conns[tok] == nil && now.Sub(seen) > tokenTTL {
-				delete(r.tokens, tok)
+// sweepTokens expires idle tokens that have not reconnected within tokenTTL.
+// Stops when ctx is cancelled (on relay shutdown).
+func (r *relay) sweepTokens(ctx context.Context) {
+	t := time.NewTicker(sweepEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			now := time.Now()
+			r.mu.Lock()
+			for tok, seen := range r.tokens {
+				if r.conns[tok] == nil && now.Sub(seen) > tokenTTL {
+					delete(r.tokens, tok)
+				}
 			}
+			r.mu.Unlock()
+		case <-ctx.Done():
+			return
 		}
-		r.mu.Unlock()
 	}
 }
 
+// genSecret generates an n-character random string using rejection sampling
+// to eliminate modulo bias (charset length 57 doesn't divide 256 evenly).
 func genSecret(n int) string {
 	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		log.Fatal(err)
+	const accept = 256 - 256%len(charset) // 228 — values 228..255 rejected
+	out := make([]byte, n)
+	buf := make([]byte, n+64)
+	done := 0
+	for done < n {
+		if _, err := rand.Read(buf); err != nil {
+			log.Fatal(err)
+		}
+		for _, v := range buf {
+			if int(v) < accept {
+				out[done] = charset[int(v)%len(charset)]
+				done++
+				if done == n {
+					return string(out)
+				}
+			}
+		}
 	}
-	for i := range b {
-		b[i] = charset[int(b[i])%len(charset)]
-	}
-	return string(b)
+	return string(out)
 }
 
 func (r *relay) newID() string {
@@ -880,7 +1014,6 @@ func (r *relay) newToken() string {
 		}
 	}
 }
-
 func env(k, def string) string {
 	if v := os.Getenv(k); v != "" {
 		return v
@@ -895,8 +1028,8 @@ func main() {
 		log.Printf("       for example: YTPARTY_RELAY_PASSWORD=%s", genSecret(24))
 		log.Fatal("       set YTPARTY_RELAY_PASSWORD (printable ASCII) and start again")
 	}
-	for i := 0; i < len(pw); i++ {
-		if pw[i] < 0x20 || pw[i] > 0x7e {
+	for _, ch := range []byte(pw) {
+		if ch < 0x20 || ch > 0x7e {
 			log.Fatal("FATAL: YTPARTY_RELAY_PASSWORD must be printable ASCII only")
 		}
 	}
@@ -918,17 +1051,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("YT Party relay (encrypted) listening on %s:%s", host, port)
-	go r.sweepTokens()
-	go func() {
-		<-ctx.Done()
-		ln.Close()
-	}()
+	slog.Info("listening", "host", host, "port", port)
+	go r.sweepTokens(ctx)
+	go func() { <-ctx.Done(); ln.Close() }()
 	for {
 		c, err := ln.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
-				log.Print("shutdown")
+				slog.Info("shutdown")
 				return
 			}
 			continue

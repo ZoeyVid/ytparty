@@ -14,7 +14,7 @@ client mod drives them identically. Over the Minecraft channel it is `ytparty:sy
 | 2 | LEAVE | – |
 | 3 | INVITE | UTF playerName, byte level |
 | 4 | SET_LEVEL | UTF playerName, byte level |
-| 5 | ADD | UTF uri, UTF title |
+| 5 | ADD | UTF uri, UTF title — server/relay derives the requester from the sender |
 | 6 | REMOVE | int index |
 | 7 | MOVE | int from, int to |
 | 8 | SET_INDEX | int index |
@@ -22,18 +22,20 @@ client mod drives them identically. Over the Minecraft channel it is `ytparty:sy
 | 10 | SET_POSITION | long ms (absolute) |
 | 11 | SET_PUBLIC | bool isPublic, byte joinLevel |
 | 12 | SET_AUTOREMOVE | bool on |
+| 13 | LIST_PUBLIC | *(no payload)* |
 
 ## S2C (backend → client)
 
 | Op | Name | Fields |
 |----|------|--------|
-| 0 | STATE | UTF partyId, byte myLevel, bool isPublic, byte publicJoinLevel, bool paused, int index, bool autoRemovePlayed, int trackCount, trackCount×(UTF uri, UTF title), int memberCount, memberCount×(UTF name, byte level, bool duplicate) |
+| 0 | STATE | UTF partyId, byte myLevel, bool isPublic, byte publicJoinLevel, bool paused, int index, bool autoRemovePlayed, int trackCount, trackCount×(UTF uri, UTF title, UTF requester), int memberCount, memberCount×(UTF name, byte level, bool duplicate) |
 | 1 | INVITED | UTF fromName, UTF partyId, byte level |
 | 2 | MESSAGE | UTF text |
 | 3 | LEFT | – |
 | 4 | SEEK | long ms (absolute) |
+| 5 | PUBLIC_LIST | int count, count×(UTF id, int members, UTF currentTitle) — relay-only, sent in response to `LIST_PUBLIC`; sorted by member count descending |
 
-On the relay the string fields (name, uri, title) are passed through as **opaque blobs** — full
+On the relay the string fields (name, uri, title, requester) are passed through as **opaque blobs** — full
 fidelity including emoji. Level bytes: `0` = LISTEN, `1` = INVITE, `2` = MANAGE.
 
 Volume is **never** synced (purely client-local). Auto-advance within a party is sent by only one

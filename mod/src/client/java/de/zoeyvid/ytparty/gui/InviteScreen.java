@@ -58,9 +58,9 @@ public final class InviteScreen extends Screen {
         search.setMaxLength(64);
         search.setValue(savedSearch);
         addRenderableWidget(search);
-        addRenderableWidget(Button.builder(Component.literal(PlaylistScreen.levelName(inviteLevel)), b -> {
+        addRenderableWidget(Button.builder(Component.literal("as: " + PlaylistScreen.levelName(inviteLevel)), b -> {
             inviteLevel = (byte) ((inviteLevel + 1) % (c.myLevel() + 1));
-            b.setMessage(Component.literal(PlaylistScreen.levelName(inviteLevel)));
+            b.setMessage(Component.literal("as: " + PlaylistScreen.levelName(inviteLevel)));
         }).bounds(left + 234, 30, 86, 20).build());
 
         String typed = savedSearch.trim();

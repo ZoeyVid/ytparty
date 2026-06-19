@@ -2,8 +2,8 @@
 
 ## Relay (Go)
 
-**None.** Go standard library only (`crypto/ecdh`, `crypto/mlkem`, `crypto/aes`, `crypto/cipher`,
-`crypto/hmac`, `crypto/sha256`, `crypto/rand`, `net`, …). `go.mod` has no `require` entries → a plain
+**None.** Go standard library only (`crypto/ecdh`, `crypto/mlkem`, `crypto/pbkdf2`, `crypto/aes`, `crypto/cipher`,
+`crypto/hmac`, `crypto/sha256`, `crypto/rand`, `log/slog`, `net`, …). `go.mod` has no `require` entries → a plain
 `CGO_ENABLED=0 go build` yields a fully static binary.
 
 ## Paper plugin
