@@ -24,7 +24,7 @@ jobs:
           GOOS: linux
           GOARCH: ${{ matrix.arch }}
         run: go build -trimpath -ldflags "-s -w" -o ytparty-relay-linux-${{ matrix.arch }} .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ytparty-relay-linux-${{ matrix.arch }}
           path: relay/ytparty-relay-linux-${{ matrix.arch }}
@@ -43,7 +43,7 @@ jobs:
       - name: build jars
         working-directory: mod
         run: ./gradlew shadowJar serverJar --no-daemon --stacktrace
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ytparty-mod
           path: mod/build/libs/*.jar
@@ -62,7 +62,7 @@ jobs:
       - name: build jar
         working-directory: plugin
         run: ./gradlew build --no-daemon --stacktrace
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ytparty-plugin
           path: plugin/build/libs/*.jar
