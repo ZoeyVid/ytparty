@@ -62,7 +62,7 @@ public final class RelayScreen extends Screen {
             }).bounds(left, top + 104, 320, 20).build());
         }
 
-        addRenderableWidget(Button.builder(Component.literal("Back"), b -> { de.zoeyvid.ytparty.ClientConfig.save(); this.minecraft.setScreen(new PlaylistScreen()); })
+        addRenderableWidget(Button.builder(Component.literal("Back"), b -> { de.zoeyvid.ytparty.ClientConfig.save(); this.minecraft.setScreenAndShow(new PlaylistScreen()); })
             .bounds(left, this.height - 28, 320, 20).build());
     }
 

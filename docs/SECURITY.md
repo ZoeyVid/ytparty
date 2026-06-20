@@ -19,7 +19,7 @@ crypto on **both** ends (Go relay + Java `RelayClient`).
 
 ## Relay crypto (hybrid, forward-secret, post-quantum)
 
-- **PSK key:** `K = PBKDF2-HMAC-SHA256(psk, "ytparty-relay-v1", 600000, 32)`. The relay uses Go 1.24's
+- **PSK key:** `K = PBKDF2-HMAC-SHA256(psk, "ytparty-relay-v1", 600000, 32)`. The relay uses Go's
   standard-library `crypto/pbkdf2`; the mod hand-rolls the same construction on top of JDK's
   `HmacSHA256` (JDK's own `PBKDF2WithHmacSHA256` would re-encode the password and diverge). Both produce
   identical bytes for an ASCII PSK, which the live handshake verifies — a mismatch would fail the GCM tag.
@@ -43,7 +43,7 @@ crypto on **both** ends (Go relay + Java `RelayClient`).
   mod refuses to connect. If no PSK is set the relay **refuses to start** — it prints a randomly generated
   example key and exits, rather than ever running unauthenticated.
 
-Cross-checked: PBKDF2 against RFC vectors, X25519/ML-KEM shared secrets byte-for-byte Java 25 ↔ Go 1.24
+Cross-checked: PBKDF2 against RFC vectors, X25519/ML-KEM shared secrets byte-for-byte Java 25 ↔ Go
 in both directions, and the full handshake live mod-crypto ↔ relay binary over TCP.
 
 ## Confidentiality of party content
@@ -68,8 +68,9 @@ enumerated or probed either. Public parties are joinable by anyone with the PSK 
 
 ## Client-side robustness
 
-- **STATE counts are bounded** (≤ 500 tracks / ≤ 4096 members) before allocating → a malicious relay
-  cannot OOM the client with a huge count.
+- **No decode path can be made to OOM:** STATE counts are bounded (≤ 500 tracks / ≤ 4096 members)
+  before allocating, and the public-party and player list decodes never pre-size a collection from the
+  wire count → a malicious relay cannot make the client allocate a huge buffer from a forged length.
 - **Sending never blocks the MC main thread:** a dedicated writer thread with a bounded queue writes to
   the relay (Java sockets have no write timeout — a stalled relay would otherwise freeze the client).
   Queue full → clean disconnect.
@@ -98,20 +99,30 @@ crypto/permission paths are cross-checked.
   this is true in **online *and* offline mode** (the relay isn't a Mojang-authenticated Minecraft server,
   just a socket gated by the password). Two mitigations narrow this: the relay keys all of its state by a
   per-client **token** (issued TOFU on first connect, re-presented afterwards), not by UUID, so one client
-  cannot hijack another's session or membership by claiming its UUID; and any members of a party that share
-  a claimed UUID are flagged **duplicate** in STATE, so the discrepancy is visible in-game. It remains a
-  friends model — keep the PSK among people you trust. By contrast, on the **plugin/server-mod** backends
+  cannot hijack another's session or membership by claiming its UUID; and a party admits any UUID or username
+  **only once** — the relay refuses a join whose identity already belongs to a member, so an impersonator
+  cannot sit alongside the real person in the same party (they can still connect, just not share that party).
+  It remains a friends model — keep the PSK among people you trust. By contrast, on the **plugin/server-mod** backends
   the sync rides Minecraft's own connection, so on an online-mode server identities are verified by
   Minecraft itself (an offline-mode server verifies nothing, but that is the server's choice, not this mod's).
 - **Tokens are RAM-only and expire** after inactivity; they are an authenticator, not a capability to a
-  party — a genuine disconnect still leaves the party, and a token only re-authenticates the same identity.
+  party — a genuine disconnect still leaves the party, and a token is bound to the UUID it was issued to, so
+  re-presenting it only ever resumes that same identity: a token replayed under a different UUID is treated
+  as a brand-new client, never a resume.
+- **Secrets (party ids, resume tokens) are CSPRNG-generated** from `crypto/rand` over an ambiguity-free
+  alphabet (no `0/O/1/I/l`) using rejection sampling — 8-character party ids, 24-character tokens. Rejection
+  sampling discards the few byte values that would otherwise skew the result, avoiding the modulo bias a
+  plain `byte % len(charset)` would introduce.
 - **PSK brute-force is online-only** (no offline material): each attempt costs the attacker a full
   PBKDF2-600k plus a handshake. Still, use a long, random PSK.
 - **Rate limiting & connection caps** are built in (fixed, sensible defaults — no configuration): a global
   cap on concurrent connections, a per-IP connection cap, a per-IP connection-attempt token bucket, and a
-  per-connection message-rate token bucket. A client that floods messages or an IP that opens too many
-  connections is dropped, not allowed to exhaust the relay. For an internet-exposed deployment a firewall
-  or reverse proxy in front is still sensible; the relay binds `0.0.0.0` by default.
+  per-connection message-rate token bucket. An IP that opens too many connections is rejected; a client that
+  floods messages has the excess silently dropped while the connection stays up. For an internet-exposed
+  deployment a firewall or reverse proxy in front is still sensible; the relay binds `0.0.0.0` by default.
+  The **plugin and Fabric server-mod backends** apply the same per-player message-rate token bucket — flood
+  messages from one player are silently dropped (the player stays connected) — as defense-in-depth on top of
+  the server's own packet handling.
 - No official TLS/Noise framework — a hand-assembled but cross-checked construction from stdlib
   primitives (stdlib KDF/KEM/AEAD on each side; the framing and handshake glue are ours).
   If you want something more "official": TLS 1.3 with the `X25519MLKEM768` group.

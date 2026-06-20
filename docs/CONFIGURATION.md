@@ -79,5 +79,11 @@ connection, your volume, and your solo playlist between sessions.
 > On restart the client presents no token and the relay issues a new one (TOFU). A token on disk would
 > be an unencrypted credential readable by any process with file access, which is worse than just
 > re-entering the password — so RAM-only is the right trade-off.
-| `volume` | int | `100` | Playback volume (0–200). |
+| `volume` | int | `100` | Playback volume (0–200), applied locally at the OpenAL source. |
+| `sponsorblock.flags` | int | `15` | Your solo SponsorBlock preference as a bitmask: `0x01` master enable, `0x02` sponsor, `0x04` unpaid/self-promotion, `0x08` music-offtopic (`15` = all on). In a party the managers' setting applies instead; skipping always runs locally on each client. |
+| `repeat` | bool | `false` | Your solo loop-current-track preference. In a party the managers' setting applies; looping always runs locally (the client replays a clone of the track). |
+| `autoremove` | bool | `true` | Your solo auto-remove-played preference; **off = loop the whole playlist** (advance past the last track back to the first). In a party the managers' setting applies. |
+| `hud.enabled` | bool | `true` | Now-Playing HUD on/off — a small overlay showing the current track + play state. Client-local, never synced. |
+| `hud.corner` | int | `1` | HUD screen corner: `0` top-left, `1` top-right, `2` bottom-left, `3` bottom-right. |
+| `hud.always` | bool | `false` | HUD visibility: `false` shows it only ~4 s around a track change, `true` keeps it always on screen. |
 | `track.count` / `track.N.uri` / `track.N.title` | – | – | Your solo playlist (party playlists live on the backend, not here). |

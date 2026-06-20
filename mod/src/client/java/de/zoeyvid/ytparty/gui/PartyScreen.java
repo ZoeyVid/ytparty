@@ -16,13 +16,14 @@ public final class PartyScreen extends Screen {
     private String savedInvite = "";
     private byte inviteLevel = -1;
     private String lastSig = "";
+    private int scroll;
 
     public PartyScreen() { super(Component.literal("Party")); }
 
     @Override
     protected void init() {
         PlayerController c = PlayerController.INSTANCE;
-        if (!c.inParty()) { this.minecraft.setScreen(new PlaylistScreen()); return; }
+        if (!c.inParty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
         if (inviteLevel < 0) inviteLevel = (byte) Math.min(1, c.myLevel());
         inviteLevel = (byte) Math.min(inviteLevel, c.myLevel());
         lastSig = signature();
@@ -44,16 +45,18 @@ public final class PartyScreen extends Screen {
         }
 
         List<SyncProtocol.Member> members = c.members();
-        for (int i = 0; i < Math.min(members.size(), MAX_MEMBERS); i++) {
+        scroll = Math.clamp(scroll, 0, Math.max(0, members.size() - MAX_MEMBERS));
+        int end = Math.min(members.size(), scroll + MAX_MEMBERS);
+        for (int i = scroll; i < end; i++) {
             SyncProtocol.Member m = members.get(i);
             net.minecraft.network.chat.MutableComponent label = Component.literal(m.name() + " \u2014 " + PlaylistScreen.levelName(m.level()));
-            if (m.duplicate()) label.withStyle(net.minecraft.ChatFormatting.RED);
             addRenderableWidget(new StringWidget(left, y + 6, 200, 12, label, this.font));
             if (c.canManage())
                 addRenderableWidget(Button.builder(Component.literal(PlaylistScreen.levelName(m.level())),
                     b -> c.setLevel(m.name(), (byte) ((m.level() + 1) % 3))).bounds(left + 210, y, 110, 20).build());
             y += 22;
         }
+        if (members.size() > MAX_MEMBERS) { addRenderableWidget(new StringWidget(left, y, 320, 12, Component.literal("\u2195 " + (scroll + 1) + "\u2013" + end + " / " + members.size()), this.font)); y += 14; }
 
         y += 6;
         if (c.canInvite()) {
@@ -70,26 +73,37 @@ public final class PartyScreen extends Screen {
                 if (!n.isEmpty()) { c.invite(n, inviteLevel); inviteField.setValue(""); savedInvite = ""; }
             }).bounds(left + 248, y, 72, 20).build());
             y += 24;
-            addRenderableWidget(Button.builder(Component.literal("Invite from list\u2026"), b -> this.minecraft.setScreen(new InviteScreen())).bounds(left, y, 320, 20).build());
+            addRenderableWidget(Button.builder(Component.literal("Invite from list\u2026"), b -> this.minecraft.setScreenAndShow(new InviteScreen())).bounds(left, y, 320, 20).build());
         }
 
-        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreen(new PlaylistScreen()))
+        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))
             .bounds(left, this.height - 28, 320, 20).build());
     }
 
     @Override
     public void tick() {
         PlayerController c = PlayerController.INSTANCE;
-        if (!c.inParty()) { this.minecraft.setScreen(new PlaylistScreen()); return; }
+        if (!c.inParty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
         if (inviteField != null) savedInvite = inviteField.getValue();
         if (!signature().equals(lastSig)) rebuildWidgets();
+    }
+
+    @Override
+    public boolean mouseScrolled(double mx, double my, double dx, double dy) {
+        int size = PlayerController.INSTANCE.members().size();
+        if (size > MAX_MEMBERS && dy != 0) {
+            int next = Math.clamp(scroll - (int) Math.signum(dy), 0, size - MAX_MEMBERS);
+            if (next != scroll) { scroll = next; rebuildWidgets(); }
+            return true;
+        }
+        return super.mouseScrolled(mx, my, dx, dy);
     }
 
     private String signature() {
         PlayerController c = PlayerController.INSTANCE;
         StringBuilder sb = new StringBuilder();
         sb.append(c.partyId()).append('|').append(c.myLevel()).append('|').append(c.isPublic()).append('|').append(c.publicJoinLevel());
-        for (SyncProtocol.Member m : c.members()) sb.append('|').append(m.name()).append(':').append(m.level()).append(m.duplicate());
+        for (SyncProtocol.Member m : c.members()) sb.append('|').append(m.name()).append(':').append(m.level());
         return sb.toString();
     }
 

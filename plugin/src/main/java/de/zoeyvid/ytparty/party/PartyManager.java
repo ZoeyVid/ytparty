@@ -2,7 +2,10 @@ package de.zoeyvid.ytparty.party;
 
 import org.bukkit.entity.Player;
 
+import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -11,7 +14,9 @@ public final class PartyManager {
 
     private final Map<String, Party> byId = new HashMap<>();
     private final Map<UUID, String> playerToParty = new HashMap<>();
-    private static final java.security.SecureRandom RNG = new java.security.SecureRandom();
+    private boolean defaultPublic = false;
+    private PermissionLevel defaultPublicLevel = PermissionLevel.LISTEN;
+    private static final SecureRandom RNG = new SecureRandom();
     private static final String IDCHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
     private String newId() {
@@ -19,13 +24,13 @@ public final class PartyManager {
         do { StringBuilder s = new StringBuilder(8); for (int i = 0; i < 8; i++) s.append(IDCHARS.charAt(RNG.nextInt(IDCHARS.length()))); id = s.toString(); } while (byId.containsKey(id));
         return id;
     }
-    private boolean defaultPublic = false;
-    private PermissionLevel defaultPublicLevel = PermissionLevel.LISTEN;
 
     public void setDefaults(boolean pub, PermissionLevel level) { defaultPublic = pub; defaultPublicLevel = level; }
 
     public Party of(UUID player) { String id = playerToParty.get(player); return id != null ? byId.get(id) : null; }
     public Party get(String id) { return byId.get(id); }
+    public List<Party> publicParties() { List<Party> out = new ArrayList<>(); for (Party p : byId.values()) if (p.isPublic) out.add(p); out.sort((a, b) -> Integer.compare(b.members.size(), a.members.size())); return out; }
+    public void forgetInvites(UUID u) { for (Party p : byId.values()) p.invites.remove(u); }
 
     public Party create(Player host) {
         String id = newId();

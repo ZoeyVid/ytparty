@@ -8,11 +8,10 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class Party {
-    public record TrackRef(String uri, String title, String requester) {}
+    public record TrackRef(int id, String uri, String title, String requester) {}
     public record MgrReport(long pos, long at) {}
 
     public final String id;
-    public final UUID host;
     public final Map<UUID, PermissionLevel> members = new LinkedHashMap<>();
     public final Map<UUID, PermissionLevel> invites = new HashMap<>();
     public final List<TrackRef> tracks = new ArrayList<>();
@@ -24,9 +23,11 @@ public final class Party {
     public boolean autoRemovePlayed = true;
     public byte sbFlags = 0x0F;
     public boolean repeatOne = false;
+    public int nextTrackId = 1;
+    public int generation = 0;
 
     public Party(String id, UUID host, boolean isPublic, PermissionLevel publicJoinLevel) {
-        this.id = id; this.host = host; this.isPublic = isPublic; this.publicJoinLevel = publicJoinLevel;
+        this.id = id; this.isPublic = isPublic; this.publicJoinLevel = publicJoinLevel;
         members.put(host, PermissionLevel.MANAGE);
     }
 
@@ -34,6 +35,13 @@ public final class Party {
     public boolean canManage(UUID u) { return level(u).canManage(); }
     public boolean canInvite(UUID u) { return level(u).canInvite(); }
     public boolean hasManager() { for (PermissionLevel l : members.values()) if (l.canManage()) return true; return false; }
+
+    public int curTrackId() { return currentIndex >= 0 && currentIndex < tracks.size() ? tracks.get(currentIndex).id() : 0; }
+
+    public int indexOf(int id) {
+        for (int i = 0; i < tracks.size(); i++) if (tracks.get(i).id() == id) return i;
+        return -1;
+    }
 
     public void move(int from, int to) {
         if (from < 0 || from >= tracks.size() || to < 0 || to >= tracks.size()) return;

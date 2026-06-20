@@ -61,7 +61,7 @@ server classes (dedicated servers never play audio).
 | Tool | Version | For |
 |---|---|---|
 | JDK (Temurin) | 25 | mod + plugin |
-| Gradle (wrapper) | 9.4.0 | mod + plugin |
-| Fabric Loom | 1.15-SNAPSHOT | mod |
-| Gradle Shadow | 9.0.0 | mod (full bundle) |
-| Go | 1.24 | relay |
+| Gradle (wrapper) | 9.6.0 | mod + plugin |
+| Fabric Loom | 1.17.11 | mod |
+| Gradle Shadow | 9.4.2 | mod (full bundle) |
+| Go | 1.26 | relay |

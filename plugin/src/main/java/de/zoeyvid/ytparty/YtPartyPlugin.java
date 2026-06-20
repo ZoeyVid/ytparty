@@ -9,6 +9,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.UUID;
+
 public final class YtPartyPlugin extends JavaPlugin implements Listener {
     private final PartyManager manager = new PartyManager();
     private ChannelBridge bridge;
@@ -27,6 +29,9 @@ public final class YtPartyPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        bridge.afterLeave(manager.leave(event.getPlayer().getUniqueId()));
+        UUID u = event.getPlayer().getUniqueId();
+        bridge.afterLeave(manager.leave(u));
+        manager.forgetInvites(u);
+        bridge.forget(u);
     }
 }

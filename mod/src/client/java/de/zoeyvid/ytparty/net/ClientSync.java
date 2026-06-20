@@ -5,6 +5,7 @@ import de.zoeyvid.ytparty.relay.RelayClient;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -17,6 +18,8 @@ public final class ClientSync {
     private ClientSync() {}
 
     public static PlayerController.Sink serverSink() { return SERVER_SINK; }
+
+    public static boolean backendAvailable() { return RelayClient.INSTANCE.connected() || ClientPlayNetworking.canSend(SyncPayload.TYPE); }
 
     public static void register() {
         PlayerController.INSTANCE.setSink(SERVER_SINK);
@@ -49,9 +52,15 @@ public final class ClientSync {
                 case SyncProtocol.S2C_MESSAGE -> message(d.readUTF());
                 case SyncProtocol.S2C_PUBLIC_LIST -> {
                     int count = d.readInt();
-                    java.util.List<SyncProtocol.PartyEntry> entries = new java.util.ArrayList<>(count);
+                    java.util.List<SyncProtocol.PartyEntry> entries = new java.util.ArrayList<>();
                     for (int i = 0; i < count; i++) entries.add(new SyncProtocol.PartyEntry(d.readUTF(), d.readInt(), d.readUTF()));
                     PlayerController.INSTANCE.onPublicList(entries);
+                }
+                case SyncProtocol.S2C_PLAYER_LIST -> {
+                    int count = d.readInt();
+                    java.util.List<String> names = new java.util.ArrayList<>();
+                    for (int i = 0; i < count; i++) names.add(d.readUTF());
+                    PlayerController.INSTANCE.onPlayerList(names);
                 }
                 default -> {}
             }
@@ -60,6 +69,6 @@ public final class ClientSync {
 
     private static void message(String text) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) mc.player.sendSystemMessage(net.minecraft.network.chat.Component.literal(text));
+        if (mc.player != null) mc.player.sendSystemMessage(Component.literal(text));
     }
 }
