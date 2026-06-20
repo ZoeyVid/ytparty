@@ -39,6 +39,7 @@ public final class ClientConfig {
         RelayClient.port = p.getProperty("relay.port", RelayClient.port);
         RelayClient.rememberPassword = Boolean.parseBoolean(p.getProperty("relay.remember-password", "true"));
         if (RelayClient.rememberPassword) RelayClient.password = p.getProperty("relay.password", "");
+        RelayClient.autoConnect = Boolean.parseBoolean(p.getProperty("relay.autoconnect", "false"));
         PlayerController.INSTANCE.setVolume(parseInt(p.getProperty("volume", "100"), 100));
         sbFlags = (byte) parseInt(p.getProperty("sponsorblock.flags", String.valueOf(SponsorBlock.FLAG_ALL)), SponsorBlock.FLAG_ALL);
         if (Boolean.parseBoolean(p.getProperty("repeat", "false"))) PlayerController.INSTANCE.toggleRepeat();
@@ -56,6 +57,7 @@ public final class ClientConfig {
         p.setProperty("relay.port", RelayClient.port);
         p.setProperty("relay.remember-password", Boolean.toString(RelayClient.rememberPassword));
         if (RelayClient.rememberPassword) p.setProperty("relay.password", RelayClient.password);
+        p.setProperty("relay.autoconnect", Boolean.toString(RelayClient.autoConnect));
         p.setProperty("volume", Integer.toString(PlayerController.INSTANCE.volume()));
         p.setProperty("sponsorblock.flags", Integer.toString(sbFlags));
         p.setProperty("repeat", Boolean.toString(PlayerController.INSTANCE.repeatOne()));

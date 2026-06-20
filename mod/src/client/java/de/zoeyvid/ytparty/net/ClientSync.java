@@ -5,6 +5,7 @@ import de.zoeyvid.ytparty.relay.RelayClient;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.network.chat.Component;
 
 import java.io.DataInputStream;
@@ -68,7 +69,7 @@ public final class ClientSync {
     }
 
     public static void message(String text) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) mc.player.sendSystemMessage(Component.literal(text));
+        var toasts = Minecraft.getInstance().getToastManager();
+        if (toasts != null) SystemToast.addOrUpdate(toasts, SystemToast.SystemToastId.PERIODIC_NOTIFICATION, Component.literal("YT Party"), Component.literal(text));
     }
 }

@@ -182,7 +182,7 @@ public final class PlaylistScreen extends Screen {
         } else if (!c.pendingInvites().isEmpty()) {
             btn("Create", c::createParty, "Create a new listening party", left, y, 110);
             var invites = c.pendingInvites();
-            if (invites.size() == 1) btn("Join " + invites.getFirst().id(), () -> c.acceptInvite(invites.getFirst().id()), "Accept the invite and join", left + 114, y, 120);
+            if (invites.size() == 1) { var first = invites.getFirst(); btn("Join " + first.id(), () -> c.acceptInvite(first.id()), "Accept the invite and join", left + 114, y, 120); }
             else btn("Invites (" + invites.size() + ")\u2026", () -> this.minecraft.setScreenAndShow(new InvitesScreen()), "View and accept pending invites", left + 114, y, 120);
             btn("Relay", () -> this.minecraft.setScreenAndShow(new RelayScreen()), "Relay connection settings", left + 238, y, 82);
         } else if (ClientSync.backendAvailable()) {

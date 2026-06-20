@@ -32,6 +32,7 @@ public final class RelayClient {
     public static String password = "";
     public static String token = "";
     public static boolean rememberPassword = true;
+    public static boolean autoConnect = false;
 
     private volatile Status status = Status.DISCONNECTED;
     private volatile String message = "";

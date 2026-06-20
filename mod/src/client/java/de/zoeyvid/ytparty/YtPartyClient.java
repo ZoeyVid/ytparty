@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import de.zoeyvid.ytparty.gui.NowPlayingHud;
 import de.zoeyvid.ytparty.gui.PlaylistScreen;
 import de.zoeyvid.ytparty.net.ClientSync;
+import de.zoeyvid.ytparty.relay.RelayClient;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -18,6 +19,8 @@ import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public final class YtPartyClient implements ClientModInitializer {
+    private boolean autoConnectDone;
+
     @Override
     public void onInitializeClient() {
         ClientSync.register();
@@ -29,6 +32,11 @@ public final class YtPartyClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             PlayerController.INSTANCE.tick();
+            if (!autoConnectDone) {
+                autoConnectDone = true;
+                if (RelayClient.autoConnect && !RelayClient.host.isEmpty())
+                    try { RelayClient.INSTANCE.connect(RelayClient.host, Integer.parseInt(RelayClient.port), RelayClient.password); } catch (NumberFormatException ignored) {}
+            }
             while (open.consumeClick()) client.setScreenAndShow(new PlaylistScreen());
         });
 

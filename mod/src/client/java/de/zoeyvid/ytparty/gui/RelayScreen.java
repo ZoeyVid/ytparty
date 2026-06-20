@@ -47,7 +47,12 @@ public final class RelayScreen extends Screen {
             RelayClient.rememberPassword = !RelayClient.rememberPassword;
             de.zoeyvid.ytparty.ClientConfig.save();
             rebuildWidgets();
-        }).bounds(left, top + 78, 320, 20).build());
+        }).bounds(left, top + 78, 158, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Autoconnect: " + (RelayClient.autoConnect ? "ON" : "OFF")), b -> {
+            RelayClient.autoConnect = !RelayClient.autoConnect;
+            de.zoeyvid.ytparty.ClientConfig.save();
+            rebuildWidgets();
+        }).bounds(left + 162, top + 78, 158, 20).build());
 
         boolean busy = RelayClient.INSTANCE.connected() || RelayClient.INSTANCE.status() == RelayClient.Status.CONNECTING;
         if (busy) {

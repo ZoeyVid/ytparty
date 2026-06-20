@@ -74,6 +74,7 @@ connection, your volume, and your solo playlist between sessions.
 | `relay.port` | int | `25599` | Last relay port. |
 | `relay.remember-password` | bool | `true` | When on, the relay password is saved; turn it off in the Relay screen to omit it from the file. |
 | `relay.password` | string | *(empty)* | Saved relay password — only present when `relay.remember-password` is `true`. |
+| `relay.autoconnect` | bool | `false` | When on, the client connects to the saved relay automatically at startup. Toggle it in the Relay screen. |
 
 > **Note:** The relay auth token lives in RAM only and is intentionally **not** persisted to disk.
 > On restart the client presents no token and the relay issues a new one (TOFU). A token on disk would

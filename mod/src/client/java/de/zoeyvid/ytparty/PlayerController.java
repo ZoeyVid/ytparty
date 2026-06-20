@@ -91,7 +91,6 @@ public final class PlayerController {
         sponsorBlockTick();
     }
 
-
     private void sponsorBlockTick() {
         if (paused || currentIndex < 0 || audio.duration() <= 0 || !segmentsUri.equals(loadedUri)) return;
         byte flags = inParty ? partySbFlags : ClientConfig.sbFlags();
@@ -252,7 +251,7 @@ public final class PlayerController {
 
     private void onTrackFailed() {
         Track t = playlist.get(currentIndex);
-        ClientSync.message("YT Party: couldn't play" + (t != null ? " \u201c" + t.title() + "\u201d" : " this track"));
+        ClientSync.message("Couldn't play" + (t != null ? " \u201c" + t.title() + "\u201d" : " this track"));
         if (inParty) { if (canManage() && sink != null) { Track next = playlist.get(currentIndex + 1); if (next != null) sink.send(SyncProtocol.setTrack(next.id())); } }
         else setIndexLocal(currentIndex + 1);
     }
@@ -264,7 +263,7 @@ public final class PlayerController {
         isPublic = s.isPublic();
         publicJoinLevel = s.publicJoinLevel();
         members = s.members();
-        invites.clear();
+        invites.removeIf(i -> i.id().equals(s.partyId()));
         paused = s.paused();
         autoRemovePlayed = s.autoRemovePlayed();
         partySbFlags = s.sponsorBlockFlags();

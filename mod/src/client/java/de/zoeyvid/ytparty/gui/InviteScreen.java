@@ -33,7 +33,7 @@ public final class InviteScreen extends Screen {
         List<String> names = new ArrayList<>();
         if (RelayClient.INSTANCE.connected()) names.addAll(PlayerController.INSTANCE.relayPlayers());
         else if (mc.getConnection() != null) for (PlayerInfo info : mc.getConnection().getOnlinePlayers()) names.add(info.getProfile().name());
-        String filter = savedFilter.toLowerCase(Locale.ROOT);
+        String filter = savedFilter.trim().toLowerCase(Locale.ROOT);
         List<String> out = new ArrayList<>();
         for (String n : names) if (!n.equalsIgnoreCase(self) && !members.contains(n.toLowerCase(Locale.ROOT)) && n.toLowerCase(Locale.ROOT).contains(filter)) out.add(n);
         out.sort(String.CASE_INSENSITIVE_ORDER);
@@ -50,6 +50,7 @@ public final class InviteScreen extends Screen {
         addRenderableWidget(new StringWidget(left, 12, 320, 12, Component.literal("Invite to party " + c.partyId()), this.font));
         filterField = new EditBox(this.font, left, 30, 320, 20, Component.literal("filter"));
         filterField.setHint(Component.literal("Search players"));
+        filterField.setMaxLength(64);
         filterField.setValue(savedFilter);
         addRenderableWidget(filterField);
         setFocused(filterField);
