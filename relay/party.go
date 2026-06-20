@@ -3,7 +3,6 @@ package main
 import (
 	"slices"
 	"strings"
-	"time"
 )
 
 const (
@@ -35,11 +34,6 @@ func capped(level, mx int) int {
 	return level
 }
 
-type mgrReport struct {
-	pos int64
-	at  time.Time
-}
-
 type party struct {
 	id          string
 	members     map[string]int
@@ -54,7 +48,6 @@ type party struct {
 	repeatOne   bool
 	nextTrackId int
 	generation  int
-	mgrPos      map[string]mgrReport
 }
 
 type trackRef struct {

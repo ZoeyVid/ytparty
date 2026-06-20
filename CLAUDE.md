@@ -82,7 +82,7 @@ and pass `-Dorg.gradle.java.installations.paths=$JAVA_HOME`. Not needed on a nor
 
 Raw `DataOutputStream` bytes on `ytparty:sync`; the relay wraps the *same* payload in an encrypted
 frame with a 4-byte big-endian length prefix. C2S ops 0–18 (8 = `SET_TRACK`, 12 = `SET_AUTOREMOVE`,
-13 = `LIST_PUBLIC`, 14 = `REPORT_POSITION`, 15 = `SET_SPONSORBLOCK`, 16 = `SET_REPEAT`,
+13 = `LIST_PUBLIC`, 14 = *(reserved)*, 15 = `SET_SPONSORBLOCK`, 16 = `SET_REPEAT`,
 17 = `TRACK_ENDED`, 18 = `SET_PLAYLIST`); S2C 0–5 (0 = `STATE`, 5 = `PUBLIC_LIST`). `STATE` carries (after
 `currentIndex`) `autoRemovePlayed`, `sponsorBlockFlags` (byte), `repeatOne` (bool) and a monotonic
 `generation` (int), then per track an `id` (int) + three UTF strings (`uri`, `title`, `requester` — backend
@@ -111,18 +111,19 @@ client maps id ↔ row; `SET_TRACK` with an unknown id is ignored.
 the shared list stays correct for late joiners.
 
 **Generation:** bumped whenever the *current track's identity* changes (`SET_TRACK` to another track,
-`TRACK_ENDED`, removal of the current track — not a `MOVE` of it). `TRACK_ENDED` and `REPORT_POSITION` both
-carry it; the backend acts only on a matching generation, which de-duplicates several managers' staggered
-track-ends and discards drift reports that refer to an already-changed track.
+`TRACK_ENDED`, removal of the current track — not a `MOVE` of it). `TRACK_ENDED` carries it; the backend acts
+only on a matching generation, which de-duplicates several managers' staggered track-ends.
 
 **Repeat & SponsorBlock are local:** `SET_REPEAT`/`SET_SPONSORBLOCK` only sync the setting; each client
 loops (clone-replay) or skips segments by changing its own position, which is safe because it never touches
-the shared list. After any local jump the client suppresses its own drift reports for ~2 s.
+the shared list.
 
-**Drift correction (server-side median):** managers send `REPORT_POSITION(generation, ms)` every 5 s; the
-backend extrapolates each to "now", drops stale (>15 s) / non-manager entries, takes the **median**, and
-broadcasts one `SEEK`. Clients act only if >3 s off. The median is robust against a single stalled/buffering
-manager; this replaced the old single "drift leader" scheme.
+**Position sync (boundaries only):** there is no continuous drift correction. Clients re-align at track
+boundaries (everyone restarts the new track at 0 via STATE), on pause/resume (`paused` in STATE), and on a
+manual `SET_POSITION` (backend broadcasts one absolute `SEEK` to all; each applies it directly, no tolerance). Within a
+track a per-client load-latency offset (sub-second) persists until the next boundary. The old server-side
+median (`REPORT_POSITION` every 5 s → `SEEK`) was removed — it fought managers' own local jumps (e.g.
+SponsorBlock skips) with round-trip-delayed corrections and oscillated.
 
 **Relay-only** identity frame: `blob(name) ‖ blob(uuid) ‖ blob(token)` (each blob = u16 len + bytes);
 ack = `{1} ‖ blob(token)`. First connect sends an empty token, relay issues one (TOFU, RAM-only,
@@ -147,7 +148,9 @@ Forward-secret, replay-safe. Interop is byte-for-byte Java 25 ↔ Go 1.26. **PSK
 ## Permissions (enforced server-side on all three backends)
 
 LISTEN / INVITE / MANAGE. A party lives as long as ≥1 member has MANAGE; when the last manager leaves
-it disbands and everyone else gets `LEFT`. Invites cap the granted level to the inviter's own. Public
+it disbands and everyone else gets `LEFT`. Invites cap the granted level to the inviter's own. A manager
+**kicks** by sending `LEAVE` with the target's name (empty payload = leave yourself) — reuses the disband
+path, no extra op. Public
 parties: a manager toggles public + the join level. Random unguessable party ids. `ADD` caps:
 ≤500 tracks, uri ≤1000, title ≤200. The client UI only shows/hides controls accordingly.
 

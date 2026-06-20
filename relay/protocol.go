@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
-	"time"
 )
 
 const (
@@ -116,6 +115,20 @@ func (r *relay) onReceive(c *conn, payload []byte) {
 		}
 		r.doJoin(tok, pid)
 	case cLeave:
+		name := string(rd.blob())
+		if name != "" {
+			p := r.of(tok)
+			if p != nil && p.level(tok) == manage {
+				if target := r.memberByName(p, name); target != "" && target != tok {
+					w := &wtr{}
+					w.u8(sLeft)
+					r.send(target, w.b)
+					slog.Info("kick", "by", c.name, "target", name, "party", p.id)
+					r.afterLeave(r.leave(target))
+				}
+			}
+			return
+		}
 		if pid, ok := r.playerToParty[tok]; ok {
 			slog.Info("leave", "name", c.name, "party", pid)
 		}
@@ -149,13 +162,6 @@ func (r *relay) onReceive(c *conn, payload []byte) {
 		r.doListPublic(tok)
 	case cListPlayers:
 		r.doListPlayers(tok)
-	case cReportPosition:
-		gen := rd.i32()
-		ms := rd.i64()
-		if rd.bad {
-			return
-		}
-		r.doReport(tok, gen, ms)
 	default:
 		r.control(tok, byte(op), rd)
 	}
@@ -279,46 +285,6 @@ func (r *relay) doListPlayers(tok string) {
 	r.send(tok, w.b)
 }
 
-func (r *relay) doReport(tok string, gen int, ms int64) {
-	p := r.of(tok)
-	if p == nil || p.level(tok) != manage || gen != p.generation {
-		return
-	}
-	p.mgrPos[tok] = mgrReport{pos: ms, at: time.Now()}
-	r.driftSeek(p)
-}
-
-func (r *relay) driftSeek(p *party) {
-	now := time.Now()
-	var vals []int64
-	for tok, rep := range p.mgrPos {
-		if p.members[tok] != manage || now.Sub(rep.at) > 15*time.Second {
-			delete(p.mgrPos, tok)
-			continue
-		}
-		pos := rep.pos
-		if !p.paused {
-			pos += now.Sub(rep.at).Milliseconds()
-		}
-		vals = append(vals, pos)
-	}
-	if len(vals) == 0 {
-		return
-	}
-	slices.Sort(vals)
-	n := len(vals)
-	med := vals[n/2]
-	if n%2 == 0 {
-		med = (vals[n/2-1] + vals[n/2]) / 2
-	}
-	w := &wtr{}
-	w.u8(sSeek)
-	w.i64(med)
-	for m := range p.members {
-		r.send(m, w.b)
-	}
-}
-
 func (r *relay) control(tok string, op byte, rd *rdr) {
 	p := r.of(tok)
 	if p == nil {
@@ -386,7 +352,6 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		}
 		p.curIndex = i
 		p.paused = false
-		clear(p.mgrPos)
 	case cTrackEnded:
 		gen := rd.i32()
 		if rd.bad || gen != p.generation || p.curIndex < 0 {
@@ -402,7 +367,6 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 				p.curIndex = -1
 			}
 		}
-		clear(p.mgrPos)
 	case cSetPlaylist:
 		n := rd.i32()
 		if rd.bad || n < 0 || n > 500 {
@@ -428,7 +392,6 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 			p.curIndex = 0
 		}
 		p.paused = false
-		clear(p.mgrPos)
 	case cSetPaused:
 		v := rd.boolean()
 		if rd.bad {
@@ -458,7 +421,6 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		if rd.bad {
 			return
 		}
-		clear(p.mgrPos)
 		w := &wtr{}
 		w.u8(sSeek)
 		w.i64(ms)

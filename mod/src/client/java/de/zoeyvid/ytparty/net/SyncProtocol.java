@@ -49,6 +49,7 @@ public final class SyncProtocol {
 
     public static byte[] create() { return one(C2S_CREATE); }
     public static byte[] leave() { return one(C2S_LEAVE); }
+    public static byte[] kick(String name) { return write(C2S_LEAVE, d -> d.writeUTF(name)); }
     public static byte[] listPublic() { return one(C2S_LIST_PUBLIC); }
     public static byte[] listPlayers() { return one(C2S_LIST_PLAYERS); }
     public static byte[] join(String partyId) { return write(C2S_JOIN, d -> d.writeUTF(partyId)); }
@@ -62,7 +63,6 @@ public final class SyncProtocol {
     public static byte[] setTrack(int trackId) { return write(C2S_SET_TRACK, d -> d.writeInt(trackId)); }
     public static byte[] setPaused(boolean paused) { return write(C2S_SET_PAUSED, d -> d.writeBoolean(paused)); }
     public static byte[] setPosition(long ms) { return write(C2S_SET_POSITION, d -> d.writeLong(ms)); }
-    public static byte[] reportPosition(int generation, long ms) { return write(C2S_REPORT_POSITION, d -> { d.writeInt(generation); d.writeLong(ms); }); }
     public static byte[] setSponsorBlock(byte flags) { return write(C2S_SET_SPONSORBLOCK, d -> d.writeByte(flags)); }
     public static byte[] setRepeat(boolean on) { return write(C2S_SET_REPEAT, d -> d.writeBoolean(on)); }
     public static byte[] trackEnded(int generation) { return write(C2S_TRACK_ENDED, d -> d.writeInt(generation)); }

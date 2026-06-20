@@ -28,6 +28,7 @@ public final class MusicPlayer {
     private final OpenAlOutput out = new OpenAlOutput(FORMAT.sampleRate, FORMAT.maximumChunkSize());
     private volatile boolean running = true;
     private Runnable onEnd = () -> {};
+    private Runnable onError = () -> {};
     private AudioTrack lastTrack;
 
     public MusicPlayer() {
@@ -35,7 +36,8 @@ public final class MusicPlayer {
         manager.registerSourceManager(new YoutubeAudioSourceManager());
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
-                if (reason.mayStartNext) onEnd.run();
+                if (reason == AudioTrackEndReason.FINISHED) onEnd.run();
+                else if (reason == AudioTrackEndReason.LOAD_FAILED) onError.run();
             }
         });
         Thread pump = new Thread(this::pumpLoop, "ytparty-audio");
@@ -44,6 +46,7 @@ public final class MusicPlayer {
     }
 
     public void setOnEnd(Runnable r) { onEnd = r != null ? r : () -> {}; }
+    public void setOnError(Runnable r) { onError = r != null ? r : () -> {}; }
 
     public void resolveAll(String identifier, Consumer<List<String[]>> onDone) {
         manager.loadItem(identifier, new AudioLoadResultHandler() {
@@ -74,9 +77,9 @@ public final class MusicPlayer {
     public void playIdentifier(String identifier, Consumer<String> onTitle) {
         manager.loadItem(identifier, new AudioLoadResultHandler() {
             public void trackLoaded(AudioTrack track) { start(track, onTitle); }
-            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) onEnd.run(); else start(pick(list), onTitle); }
-            public void noMatches() { onEnd.run(); }
-            public void loadFailed(FriendlyException e) { onEnd.run(); }
+            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) onError.run(); else start(pick(list), onTitle); }
+            public void noMatches() { onError.run(); }
+            public void loadFailed(FriendlyException e) { onError.run(); }
         });
     }
 

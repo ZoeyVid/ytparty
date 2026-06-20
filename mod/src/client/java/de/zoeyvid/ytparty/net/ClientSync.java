@@ -67,7 +67,7 @@ public final class ClientSync {
         } catch (IOException ignored) {}
     }
 
-    private static void message(String text) {
+    public static void message(String text) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null) mc.player.sendSystemMessage(Component.literal(text));
     }

@@ -11,7 +11,7 @@ client mod drives them identically. Over the Minecraft channel it is `ytparty:sy
 |----|------|--------|
 | 0 | CREATE | – |
 | 1 | JOIN | UTF partyId |
-| 2 | LEAVE | – |
+| 2 | LEAVE | *optional* UTF playerName — empty/absent: leave yourself; a name (MANAGE only) kicks that member |
 | 3 | INVITE | UTF playerName, byte level |
 | 4 | SET_LEVEL | UTF playerName, byte level |
 | 5 | ADD | UTF uri, UTF title — backend assigns the track id and derives the requester from the sender |
@@ -23,7 +23,7 @@ client mod drives them identically. Over the Minecraft channel it is `ytparty:sy
 | 11 | SET_PUBLIC | bool isPublic, byte joinLevel |
 | 12 | SET_AUTOREMOVE | bool on |
 | 13 | LIST_PUBLIC | *(no payload)* — request the public parties known to this backend (the relay's are global; a plugin/server-mod's are that server's) |
-| 14 | REPORT_POSITION | int generation, long ms |
+| 14 | *(reserved)* | — (was REPORT_POSITION; sent by no client, ignored by the backend) |
 | 15 | SET_SPONSORBLOCK | byte flags |
 | 16 | SET_REPEAT | bool on |
 | 17 | TRACK_ENDED | int generation |
@@ -61,16 +61,10 @@ snapshot.
 
 STATE carries a monotonic **generation** that the backend bumps whenever the *identity of the currently
 playing track changes* (a `SET_TRACK` to a different track, a `TRACK_ENDED` advance, or removal of the
-current track — but **not** a `MOVE` of the current track, which keeps the same id). It is used for two
-things:
-
-- **`TRACK_ENDED` de-duplication.** With several managers, each one's client reports its own track end at a
-  slightly different moment. The op carries the generation the sender last saw; the backend acts only if it
-  matches the current one, then bumps it, so the staggered duplicates from the other managers are dropped.
-- **Stale drift reports.** `REPORT_POSITION` also carries the generation; a report that arrives just after a
-  track change (referring to the old track) no longer matches and is discarded, so it cannot poison the
-  median. Clearing the stored reports on a track change alone is not enough — a report already in flight
-  would still land.
+current track — but **not** a `MOVE` of the current track, which keeps the same id). It **de-duplicates
+`TRACK_ENDED`**: with several managers, each one's client reports its own track end at a slightly different
+moment. The op carries the generation the sender last saw; the backend acts only if it matches the current
+one, then bumps it, so the staggered duplicates from the other managers are dropped.
 
 ## Advance vs. manual skip — `TRACK_ENDED` vs `SET_TRACK`
 
@@ -96,8 +90,8 @@ A **single-track** list is the one place `SET_TRACK` can't express the wrap (re-
 changes nothing, so no restart would reach the other members). It is handled instead as a **synchronized
 local replay**: when the list holds one track and auto-remove is off, every client independently re-runs that
 track on its own track-end — the exact clone-replay mechanism `SET_REPEAT` (Repeat-One) uses. Both the
-auto-remove flag and the track list live in STATE, so all clients reach the same decision without any message,
-and the median drift-sync keeps their loop points aligned. So a one-song list loops correctly too, with no
+auto-remove flag and the track list live in STATE, so all clients reach the same decision without any message.
+So a one-song list loops correctly too, with no
 backend change. When `autoRemovePlayed` is **on**, played tracks drain out of the list and playback stops once
 it empties (including a one-song list, which empties after one play).
 
@@ -112,16 +106,24 @@ shared playlist:
 - **SponsorBlock** — each client fetches the segments for the current track and seeks past enabled ones
   locally (`sponsorBlockFlags`, see [`CONFIGURATION.md`](CONFIGURATION.md) for the bits).
 
-After any such local jump the client suppresses its own drift reports for ~2 s so the median is not pulled
-toward a position the client is in the middle of leaving.
+## Position sync — boundaries only
 
-## Drift correction — server-side median
+There is **no continuous drift correction**. Clients re-align at discrete moments rather than being nudged
+toward a running reference:
 
-Managers send `REPORT_POSITION(generation, ms)` every 5 s. The backend stores the latest report per manager,
-extrapolates each to "now" (unless paused), drops stale (>15 s) and non-manager entries, takes the
-**median**, and broadcasts a single `SEEK` to everyone. Each client only acts on a `SEEK` if it is more than
-3 s off, which keeps small natural jitter untouched. The median is robust: one stuck or lagging manager does
-not drag the group.
+- **Track boundaries** — every client (re)starts the current track from `0` on the STATE change, so a
+  `SET_TRACK`, a `TRACK_ENDED` advance or a loop wrap re-synchronises the whole party.
+- **Pause / resume** — `paused` lives in STATE, so a pause freezes everyone at their position and resume
+  continues from there.
+- **Manual seek** — `SET_POSITION(ms)` makes the backend broadcast a single absolute `SEEK(ms)` to **all**
+  members; each member applies it directly. Since a `SEEK` is now only ever a deliberate manual jump, there
+  is no tolerance window — even a small jump propagates exactly.
+
+The trade-off is that within a single track the only thing keeping clients together is how closely they
+started it: `playIdentifier` resolves and buffers at slightly different speeds per client, so a load-latency
+offset (typically well under a second) persists until the next boundary. An earlier server-side median that
+SEEK-corrected this continuously was removed — it pulled managers back toward round-trip-delayed reference
+positions and fought their own local jumps (e.g. a SponsorBlock skip), making the position oscillate.
 
 **One identity per party.** A given UUID or username can be a member of a party only once. The relay
 rejects a `JOIN` whose UUID or (case-insensitive) username already belongs to a current member of that
@@ -158,7 +160,7 @@ disconnect (no replacement) leaves the party.
 |-------|-----|
 | **LISTEN** | only listen / stay in sync |
 | **INVITE** | listen + invite others |
-| **MANAGE** | listen + invite + manage (playlist, play/pause, seek, change levels, public settings) |
+| **MANAGE** | listen + invite + manage (playlist, play/pause, seek, change levels, kick members, public settings) |
 
 Rules:
 
@@ -170,6 +172,9 @@ Rules:
 - The invitee must be **online** when invited (on the server for the plugin/server-mod, connected to the
   relay for the relay) — an offline name is rejected and the inviter is told the player isn't online.
 - Managers can change member levels afterwards (`SET_LEVEL`).
+- Managers can **kick** a member by sending `LEAVE` with that member's name as payload (empty payload still
+  means "leave yourself"). The kicked member receives `LEFT` and drops to solo. Reusing `LEAVE` avoids a
+  separate op and shares the same disband/cleanup path; a non-manager's name payload is ignored.
 - **Public parties:** managers toggle `public on/off` and set whether joiners get `listen` or `manage`.
   Anyone may join a public party without an invite.
 - Defaults for new parties: Fabric `config/ytparty-server.properties`, Paper `config.yml`, relay env

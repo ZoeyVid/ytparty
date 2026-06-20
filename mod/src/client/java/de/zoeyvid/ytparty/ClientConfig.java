@@ -1,7 +1,6 @@
 package de.zoeyvid.ytparty;
 
 import de.zoeyvid.ytparty.audio.SponsorBlock;
-import de.zoeyvid.ytparty.playlist.Track;
 import de.zoeyvid.ytparty.relay.RelayClient;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -10,8 +9,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Properties;
 
 public final class ClientConfig {
@@ -49,13 +46,6 @@ public final class ClientConfig {
         hudEnabled = Boolean.parseBoolean(p.getProperty("hud.enabled", "true"));
         hudCorner = parseInt(p.getProperty("hud.corner", "1"), 1);
         hudAlways = Boolean.parseBoolean(p.getProperty("hud.always", "false"));
-        int n = parseInt(p.getProperty("track.count", "0"), 0);
-        List<Track> tracks = new ArrayList<>();
-        for (int i = 0; i < n; i++) {
-            String uri = p.getProperty("track." + i + ".uri");
-            if (uri != null) tracks.add(new Track(i + 1, uri, p.getProperty("track." + i + ".title", ""), ""));
-        }
-        PlayerController.INSTANCE.loadSolo(tracks);
         loaded = true;
     }
 
@@ -73,12 +63,6 @@ public final class ClientConfig {
         p.setProperty("hud.enabled", Boolean.toString(hudEnabled));
         p.setProperty("hud.corner", Integer.toString(hudCorner));
         p.setProperty("hud.always", Boolean.toString(hudAlways));
-        List<Track> tracks = PlayerController.INSTANCE.soloTracks();
-        p.setProperty("track.count", Integer.toString(tracks.size()));
-        for (int i = 0; i < tracks.size(); i++) {
-            p.setProperty("track." + i + ".uri", tracks.get(i).uri());
-            p.setProperty("track." + i + ".title", tracks.get(i).title());
-        }
         try (OutputStream out = Files.newOutputStream(PATH)) { p.store(out, "YT Party client config"); } catch (IOException ignored) {}
     }
 

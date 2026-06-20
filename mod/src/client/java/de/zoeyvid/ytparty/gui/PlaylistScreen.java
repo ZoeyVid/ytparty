@@ -179,9 +179,11 @@ public final class PlaylistScreen extends Screen {
         if (c.inParty()) {
             btn("Party\u2026", () -> this.minecraft.setScreenAndShow(new PartyScreen()), "Manage members and invites", left, y, 240);
             btn("Leave", c::leaveParty, "Leave the party", left + 244, y, 76);
-        } else if (c.pendingInviteId() != null) {
+        } else if (!c.pendingInvites().isEmpty()) {
             btn("Create", c::createParty, "Create a new listening party", left, y, 110);
-            btn("Join " + c.pendingInviteId(), c::acceptInvite, "Accept the invite and join", left + 114, y, 120);
+            var invites = c.pendingInvites();
+            if (invites.size() == 1) btn("Join " + invites.getFirst().id(), () -> c.acceptInvite(invites.getFirst().id()), "Accept the invite and join", left + 114, y, 120);
+            else btn("Invites (" + invites.size() + ")\u2026", () -> this.minecraft.setScreenAndShow(new InvitesScreen()), "View and accept pending invites", left + 114, y, 120);
             btn("Relay", () -> this.minecraft.setScreenAndShow(new RelayScreen()), "Relay connection settings", left + 238, y, 82);
         } else if (ClientSync.backendAvailable()) {
             btn("Create party", c::createParty, "Create a new listening party", left, y, 152);
@@ -215,7 +217,7 @@ public final class PlaylistScreen extends Screen {
     private String signature() {
         PlayerController c = PlayerController.INSTANCE;
         return c.inParty() + "|" + c.partyId() + "|" + c.paused() + "|" + c.currentIndex() + "|" + c.myLevel()
-            + "|" + c.pendingInviteId() + "|" + RelayClient.INSTANCE.connected() + "|" + c.autoRemovePlayed()
+            + "|" + invitesSig(c) + "|" + RelayClient.INSTANCE.connected() + "|" + c.autoRemovePlayed()
             + "|" + c.repeatOne() + "|" + c.partySbFlags() + "|" + c.playlist().version() + "|" + c.publicListVersion();
     }
 
@@ -262,11 +264,17 @@ public final class PlaylistScreen extends Screen {
         return s / 60 + ":" + String.format("%02d", s % 60);
     }
 
+    private static String invitesSig(PlayerController c) {
+        StringBuilder sb = new StringBuilder();
+        for (PlayerController.Invite i : c.pendingInvites()) sb.append(i.id()).append(',');
+        return sb.toString();
+    }
+
     private String trim(String s, int n) { return s.length() <= n ? s : s.substring(0, n - 1) + "\u2026"; }
     private Component trackComponent(Track t, boolean current, PlayerController c) {
         String pre = current ? "\u266A " : "";
-        if (t.requester().isEmpty()) return Component.literal(pre + trim(t.title(), 26));
-        return Component.literal(pre + trim(t.title(), 16) + " \u2014 by " + trim(t.requester(), 8));
+        if (t.requester().isEmpty()) return Component.literal(pre + trim(t.title(), 38));
+        return Component.literal(pre + trim(t.title(), 22) + " \u2014 by " + trim(t.requester(), 10));
     }
 
     @Override

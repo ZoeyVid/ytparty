@@ -33,7 +33,7 @@ func (r *relay) of(tok string) *party {
 	return nil
 }
 func (r *relay) create(tok string) *party {
-	p := &party{id: r.newID(), members: map[string]int{tok: manage}, invites: map[string]int{}, isPublic: r.defPublic, pubJoinLvl: r.defLevel, curIndex: -1, autoRemove: true, sbFlags: 0x0F, nextTrackId: 1, mgrPos: map[string]mgrReport{}}
+	p := &party{id: r.newID(), members: map[string]int{tok: manage}, invites: map[string]int{}, isPublic: r.defPublic, pubJoinLvl: r.defLevel, curIndex: -1, autoRemove: true, sbFlags: 0x0F, nextTrackId: 1}
 	r.byID[p.id] = p
 	r.playerToParty[tok] = p.id
 	return p

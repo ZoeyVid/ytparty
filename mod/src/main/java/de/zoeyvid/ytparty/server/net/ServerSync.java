@@ -12,7 +12,6 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -85,7 +84,16 @@ public final class ServerSync {
         if (p != null) broadcast(p);
     }
 
-    public void leave(ServerPlayer player) {
+    public void leave(ServerPlayer player, String target) {
+        if (!target.isEmpty()) {
+            Party p = manager.of(player.getUUID());
+            if (p == null || !p.canManage(player.getUUID())) return;
+            ServerPlayer t = byName(target);
+            if (t == null || t.getUUID().equals(player.getUUID()) || !p.members.containsKey(t.getUUID())) return;
+            send(t, ServerProtocol.left());
+            afterLeave(manager.leave(t.getUUID()));
+            return;
+        }
         PartyManager.LeaveResult r = manager.leave(player.getUUID());
         send(player, ServerProtocol.left());
         afterLeave(r);
@@ -106,7 +114,7 @@ public final class ServerSync {
             switch (op) {
                 case ServerProtocol.C2S_CREATE -> create(player);
                 case ServerProtocol.C2S_JOIN -> join(player, d.readUTF());
-                case ServerProtocol.C2S_LEAVE -> leave(player);
+                case ServerProtocol.C2S_LEAVE -> leave(player, d.available() > 0 ? d.readUTF() : "");
                 case ServerProtocol.C2S_INVITE -> invite(player, d.readUTF(), PermissionLevel.fromId(d.readByte()));
                 case ServerProtocol.C2S_SET_LEVEL -> setLevel(player, d.readUTF(), PermissionLevel.fromId(d.readByte()));
                 case ServerProtocol.C2S_SET_PUBLIC -> setPublic(player, d.readBoolean(), PermissionLevel.fromId(d.readByte()));
@@ -178,7 +186,6 @@ public final class ServerSync {
                 if (i < 0) return;
                 p.currentIndex = i;
                 p.paused = false;
-                p.mgrPos.clear();
             }
             case ServerProtocol.C2S_TRACK_ENDED -> {
                 int gen = d.readInt();
@@ -190,7 +197,6 @@ public final class ServerSync {
                 } else {
                     p.currentIndex = Math.min(p.currentIndex + 1, p.tracks.size() - 1);
                 }
-                p.mgrPos.clear();
             }
             case ServerProtocol.C2S_SET_PLAYLIST -> {
                 int n = d.readInt();
@@ -206,23 +212,13 @@ public final class ServerSync {
                 p.tracks.addAll(nt);
                 p.currentIndex = p.tracks.isEmpty() ? -1 : 0;
                 p.paused = false;
-                p.mgrPos.clear();
             }
             case ServerProtocol.C2S_SET_PAUSED -> p.paused = d.readBoolean();
             case ServerProtocol.C2S_SET_AUTOREMOVE -> p.autoRemovePlayed = d.readBoolean();
             case ServerProtocol.C2S_SET_SPONSORBLOCK -> p.sbFlags = (byte) (d.readByte() & 0x0F);
             case ServerProtocol.C2S_SET_REPEAT -> p.repeatOne = d.readBoolean();
-            case ServerProtocol.C2S_REPORT_POSITION -> {
-                int gen = d.readInt();
-                long ms = d.readLong();
-                if (gen != p.generation) return;
-                p.mgrPos.put(player.getUUID(), new Party.MgrReport(ms, System.currentTimeMillis()));
-                driftSeek(p);
-                return;
-            }
             case ServerProtocol.C2S_SET_POSITION -> {
                 long ms = d.readLong();
-                p.mgrPos.clear();
                 for (UUID m : p.members.keySet()) { ServerPlayer pl = online(m); if (pl != null) send(pl, ServerProtocol.seek(ms)); }
                 return;
             }
@@ -230,18 +226,6 @@ public final class ServerSync {
         }
         if (p.curTrackId() != oldCur) p.generation++;
         broadcast(p);
-    }
-
-    private void driftSeek(Party p) {
-        long now = System.currentTimeMillis();
-        p.mgrPos.entrySet().removeIf(e -> !p.canManage(e.getKey()) || now - e.getValue().at() > 15000);
-        if (p.mgrPos.isEmpty()) return;
-        List<Long> vals = new ArrayList<>();
-        for (Party.MgrReport r : p.mgrPos.values()) vals.add(p.paused ? r.pos() : r.pos() + (now - r.at()));
-        Collections.sort(vals);
-        int n = vals.size();
-        long med = n % 2 == 1 ? vals.get(n / 2) : (vals.get(n / 2 - 1) + vals.get(n / 2)) / 2;
-        for (UUID m : p.members.keySet()) { ServerPlayer pl = online(m); if (pl != null) send(pl, ServerProtocol.seek(med)); }
     }
 
     private static String cap(String s, int max) { return s.length() <= max ? s : s.substring(0, max); }

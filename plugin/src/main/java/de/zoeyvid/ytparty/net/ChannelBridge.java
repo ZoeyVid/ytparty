@@ -12,7 +12,6 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +73,16 @@ public final class ChannelBridge implements PluginMessageListener {
         if (p != null) broadcast(p);
     }
 
-    public void leave(Player player) {
+    public void leave(Player player, String target) {
+        if (!target.isEmpty()) {
+            Party p = manager.of(player.getUniqueId());
+            if (p == null || !p.canManage(player.getUniqueId())) return;
+            Player t = Bukkit.getPlayerExact(target);
+            if (t == null || t.getUniqueId().equals(player.getUniqueId()) || !p.members.containsKey(t.getUniqueId())) return;
+            sendLeft(t);
+            afterLeave(manager.leave(t.getUniqueId()));
+            return;
+        }
         PartyManager.LeaveResult r = manager.leave(player.getUniqueId());
         sendLeft(player);
         afterLeave(r);
@@ -89,7 +97,7 @@ public final class ChannelBridge implements PluginMessageListener {
             switch (op) {
                 case ServerProtocol.C2S_CREATE -> create(player);
                 case ServerProtocol.C2S_JOIN -> join(player, d.readUTF());
-                case ServerProtocol.C2S_LEAVE -> leave(player);
+                case ServerProtocol.C2S_LEAVE -> leave(player, d.available() > 0 ? d.readUTF() : "");
                 case ServerProtocol.C2S_INVITE -> handleInvite(player, d.readUTF(), d.readByte());
                 case ServerProtocol.C2S_SET_LEVEL -> handleSetLevel(player, d.readUTF(), d.readByte());
                 case ServerProtocol.C2S_SET_PUBLIC -> handleSetPublic(player, d.readBoolean(), d.readByte());
@@ -161,7 +169,6 @@ public final class ChannelBridge implements PluginMessageListener {
                 if (i < 0) return;
                 p.currentIndex = i;
                 p.paused = false;
-                p.mgrPos.clear();
             }
             case ServerProtocol.C2S_TRACK_ENDED -> {
                 int gen = d.readInt();
@@ -173,7 +180,6 @@ public final class ChannelBridge implements PluginMessageListener {
                 } else {
                     p.currentIndex = Math.min(p.currentIndex + 1, p.tracks.size() - 1);
                 }
-                p.mgrPos.clear();
             }
             case ServerProtocol.C2S_SET_PLAYLIST -> {
                 int n = d.readInt();
@@ -189,23 +195,13 @@ public final class ChannelBridge implements PluginMessageListener {
                 p.tracks.addAll(nt);
                 p.currentIndex = p.tracks.isEmpty() ? -1 : 0;
                 p.paused = false;
-                p.mgrPos.clear();
             }
             case ServerProtocol.C2S_SET_PAUSED -> p.paused = d.readBoolean();
             case ServerProtocol.C2S_SET_AUTOREMOVE -> p.autoRemovePlayed = d.readBoolean();
             case ServerProtocol.C2S_SET_SPONSORBLOCK -> p.sbFlags = (byte) (d.readByte() & 0x0F);
             case ServerProtocol.C2S_SET_REPEAT -> p.repeatOne = d.readBoolean();
-            case ServerProtocol.C2S_REPORT_POSITION -> {
-                int gen = d.readInt();
-                long ms = d.readLong();
-                if (gen != p.generation) return;
-                p.mgrPos.put(player.getUniqueId(), new Party.MgrReport(ms, System.currentTimeMillis()));
-                driftSeek(p);
-                return;
-            }
             case ServerProtocol.C2S_SET_POSITION -> {
                 long ms = d.readLong();
-                p.mgrPos.clear();
                 for (UUID m : p.members.keySet()) { Player pl = Bukkit.getPlayer(m); if (pl != null) send(pl, ServerProtocol.seek(ms)); }
                 return;
             }
@@ -213,18 +209,6 @@ public final class ChannelBridge implements PluginMessageListener {
         }
         if (p.curTrackId() != oldCur) p.generation++;
         broadcast(p);
-    }
-
-    private void driftSeek(Party p) {
-        long now = System.currentTimeMillis();
-        p.mgrPos.entrySet().removeIf(e -> !p.canManage(e.getKey()) || now - e.getValue().at() > 15000);
-        if (p.mgrPos.isEmpty()) return;
-        List<Long> vals = new ArrayList<>();
-        for (Party.MgrReport r : p.mgrPos.values()) vals.add(p.paused ? r.pos() : r.pos() + (now - r.at()));
-        Collections.sort(vals);
-        int n = vals.size();
-        long med = n % 2 == 1 ? vals.get(n / 2) : (vals.get(n / 2 - 1) + vals.get(n / 2)) / 2;
-        for (UUID m : p.members.keySet()) { Player pl = Bukkit.getPlayer(m); if (pl != null) send(pl, ServerProtocol.seek(med)); }
     }
 
     private static String cap(String s, int max) { return s.length() <= max ? s : s.substring(0, max); }

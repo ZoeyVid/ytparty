@@ -2,6 +2,7 @@ package de.zoeyvid.ytparty;
 
 import de.zoeyvid.ytparty.audio.MusicPlayer;
 import de.zoeyvid.ytparty.audio.SponsorBlock;
+import de.zoeyvid.ytparty.net.ClientSync;
 import de.zoeyvid.ytparty.net.SyncProtocol;
 import de.zoeyvid.ytparty.playlist.Playlist;
 import de.zoeyvid.ytparty.playlist.Track;
@@ -18,6 +19,8 @@ public final class PlayerController {
 
     private static final byte INVITE = 1, MANAGE = 2;
 
+    public record Invite(String id, String from, byte level) {}
+
     private final Playlist playlist = new Playlist();
     private final MusicPlayer audio = new MusicPlayer();
     private Sink sink;
@@ -27,9 +30,7 @@ public final class PlayerController {
     private byte publicJoinLevel = 0;
     private List<SyncProtocol.Member> members = new ArrayList<>();
     private String partyId = "";
-    private String pendingInviteId;
-    private String pendingInviteFrom;
-    private byte pendingInviteLevel;
+    private final List<Invite> invites = new ArrayList<>();
     private int currentIndex = -1;
     private boolean paused = false;
     private boolean autoRemovePlayed = true;
@@ -39,16 +40,14 @@ public final class PlayerController {
     private List<SyncProtocol.PartyEntry> publicParties = List.of();
     private int publicListVersion;
     private List<String> relayPlayers = List.of();
-    private long lastDriftSyncAt;
     private byte partySbFlags = SponsorBlock.FLAG_ALL;
     private boolean repeatOne = false;
     private int partyGeneration;
     private int nextLocalId = 1;
-    private long suppressReportUntil;
     private List<SponsorBlock.Segment> segments = List.of();
     private String segmentsUri = "";
 
-    private PlayerController() { audio.setOnEnd(() -> Minecraft.getInstance().execute(this::onTrackEnded)); }
+    private PlayerController() { audio.setOnEnd(() -> Minecraft.getInstance().execute(this::onTrackEnded)); audio.setOnError(() -> Minecraft.getInstance().execute(this::onTrackFailed)); }
 
     public void setSink(Sink s) { sink = s; }
 
@@ -66,12 +65,8 @@ public final class PlayerController {
     public boolean isPublic() { return isPublic; }
     public byte publicJoinLevel() { return publicJoinLevel; }
     public List<SyncProtocol.Member> members() { return members; }
-    public List<Track> soloTracks() { return playlist.view(); }
-    public void loadSolo(List<Track> tracks) { if (!inParty) playlist.replaceAll(tracks); }
     public String partyId() { return partyId; }
-    public String pendingInviteId() { return pendingInviteId; }
-    public String pendingInviteFrom() { return pendingInviteFrom; }
-    public byte pendingInviteLevel() { return pendingInviteLevel; }
+    public List<Invite> pendingInvites() { return List.copyOf(invites); }
     public List<SyncProtocol.PartyEntry> publicParties() { return publicParties; }
     public int publicListVersion() { return publicListVersion; }
     public void onPublicList(List<SyncProtocol.PartyEntry> list) { publicParties = List.copyOf(list); publicListVersion++; }
@@ -93,15 +88,9 @@ public final class PlayerController {
     }
 
     public void tick() {
-        long now = System.currentTimeMillis();
-        if (inParty && canManage() && !paused && currentIndex >= 0 && sink != null && audio.duration() > 0 && now >= suppressReportUntil && now - lastDriftSyncAt >= 5000) {
-            sink.send(SyncProtocol.reportPosition(partyGeneration, audio.position()));
-            lastDriftSyncAt = now;
-        }
         sponsorBlockTick();
     }
 
-    private void suppressReports() { suppressReportUntil = System.currentTimeMillis() + 2000; }
 
     private void sponsorBlockTick() {
         if (paused || currentIndex < 0 || audio.duration() <= 0 || !segmentsUri.equals(loadedUri)) return;
@@ -109,7 +98,7 @@ public final class PlayerController {
         if ((flags & SponsorBlock.FLAG_ENABLED) == 0) return;
         long pos = audio.position();
         for (SponsorBlock.Segment s : segments) {
-            if (SponsorBlock.categoryEnabled(flags, s.category()) && pos >= s.startMs() && pos < s.endMs() - 500) { audio.setPosition(s.endMs()); suppressReports(); return; }
+            if (SponsorBlock.categoryEnabled(flags, s.category()) && pos >= s.startMs() && pos < s.endMs() - 500) { audio.setPosition(s.endMs()); return; }
         }
     }
 
@@ -124,8 +113,9 @@ public final class PlayerController {
         }));
     }
 
-    public void onInvited(String from, String id, byte level) { pendingInviteFrom = from; pendingInviteId = id; pendingInviteLevel = level; }
-    public void acceptInvite() { if (pendingInviteId != null && sink != null) sink.send(SyncProtocol.join(pendingInviteId)); }
+    public void onInvited(String from, String id, byte level) { invites.removeIf(i -> i.id().equals(id)); invites.add(new Invite(id, from, level)); }
+    public void acceptInvite(String id) { if (sink != null) sink.send(SyncProtocol.join(id)); }
+    public void dismissInvite(String id) { invites.removeIf(i -> i.id().equals(id)); }
 
     private boolean remote() { return sink != null && inParty && canManage(); }
 
@@ -178,7 +168,7 @@ public final class PlayerController {
         else audio.seekBy(ms);
     }
 
-    public void applyRemoteSeek(long ms) { if (Math.abs(audio.position() - ms) > 3000) audio.setPosition(ms); }
+    public void applyRemoteSeek(long ms) { audio.setPosition(ms); }
 
     public void seekTo(long ms) {
         if (inParty) { if (canManage() && sink != null) sink.send(SyncProtocol.setPosition(ms)); }
@@ -225,6 +215,7 @@ public final class PlayerController {
     public void leaveParty() { if (sink != null) sink.send(SyncProtocol.leave()); }
     public void invite(String name, byte level) { if (sink != null) sink.send(SyncProtocol.invite(name, level)); }
     public void setLevel(String name, byte level) { if (sink != null) sink.send(SyncProtocol.setLevel(name, level)); }
+    public void kick(String name) { if (sink != null) sink.send(SyncProtocol.kick(name)); }
     public void setPublic(boolean pub, byte level) { if (sink != null) sink.send(SyncProtocol.setPublic(pub, level)); }
 
     public void toggleAutoRemove() {
@@ -244,7 +235,7 @@ public final class PlayerController {
     }
 
     private void onTrackEnded() {
-        if (repeatOne || (!autoRemovePlayed && playlist.size() == 1)) { audio.repeatCurrent(); suppressReports(); return; }
+        if (repeatOne || (!autoRemovePlayed && playlist.size() == 1)) { audio.repeatCurrent(); return; }
         if (inParty) {
             if (canManage() && sink != null) {
                 if (!autoRemovePlayed && currentIndex + 1 >= playlist.size() && playlist.size() > 0) sink.send(SyncProtocol.setTrack(playlist.get(0).id()));
@@ -259,6 +250,13 @@ public final class PlayerController {
         } else setIndexLocal(currentIndex + 1 < playlist.size() ? currentIndex + 1 : 0);
     }
 
+    private void onTrackFailed() {
+        Track t = playlist.get(currentIndex);
+        ClientSync.message("YT Party: couldn't play" + (t != null ? " \u201c" + t.title() + "\u201d" : " this track"));
+        if (inParty) { if (canManage() && sink != null) { Track next = playlist.get(currentIndex + 1); if (next != null) sink.send(SyncProtocol.setTrack(next.id())); } }
+        else setIndexLocal(currentIndex + 1);
+    }
+
     public void applyState(SyncProtocol.State s) {
         inParty = true;
         partyId = s.partyId();
@@ -266,8 +264,7 @@ public final class PlayerController {
         isPublic = s.isPublic();
         publicJoinLevel = s.publicJoinLevel();
         members = s.members();
-        pendingInviteId = null;
-        pendingInviteFrom = null;
+        invites.clear();
         paused = s.paused();
         autoRemovePlayed = s.autoRemovePlayed();
         partySbFlags = s.sponsorBlockFlags();

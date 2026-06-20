@@ -9,13 +9,11 @@ import java.util.UUID;
 
 public final class Party {
     public record TrackRef(int id, String uri, String title, String requester) {}
-    public record MgrReport(long pos, long at) {}
 
     public final String id;
     public final Map<UUID, PermissionLevel> members = new LinkedHashMap<>();
     public final Map<UUID, PermissionLevel> invites = new HashMap<>();
     public final List<TrackRef> tracks = new ArrayList<>();
-    public final Map<UUID, MgrReport> mgrPos = new HashMap<>();
     public boolean isPublic;
     public PermissionLevel publicJoinLevel;
     public int currentIndex = -1;

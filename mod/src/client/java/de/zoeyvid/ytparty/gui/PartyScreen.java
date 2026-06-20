@@ -3,7 +3,6 @@ package de.zoeyvid.ytparty.gui;
 import de.zoeyvid.ytparty.PlayerController;
 import de.zoeyvid.ytparty.net.SyncProtocol;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.StringWidget;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -12,9 +11,6 @@ import java.util.List;
 
 public final class PartyScreen extends Screen {
     private static final int MAX_MEMBERS = 7;
-    private EditBox inviteField;
-    private String savedInvite = "";
-    private byte inviteLevel = -1;
     private String lastSig = "";
     private int scroll;
 
@@ -24,8 +20,7 @@ public final class PartyScreen extends Screen {
     protected void init() {
         PlayerController c = PlayerController.INSTANCE;
         if (!c.inParty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
-        if (inviteLevel < 0) inviteLevel = (byte) Math.min(1, c.myLevel());
-        inviteLevel = (byte) Math.min(inviteLevel, c.myLevel());
+        String self = this.minecraft.getUser().getName();
         lastSig = signature();
 
         int left = this.width / 2 - 160;
@@ -50,31 +45,20 @@ public final class PartyScreen extends Screen {
         for (int i = scroll; i < end; i++) {
             SyncProtocol.Member m = members.get(i);
             net.minecraft.network.chat.MutableComponent label = Component.literal(m.name() + " \u2014 " + PlaylistScreen.levelName(m.level()));
-            addRenderableWidget(new StringWidget(left, y + 6, 200, 12, label, this.font));
-            if (c.canManage())
+            addRenderableWidget(new StringWidget(left, y + 6, 150, 12, label, this.font));
+            if (c.canManage()) {
                 addRenderableWidget(Button.builder(Component.literal(PlaylistScreen.levelName(m.level())),
-                    b -> c.setLevel(m.name(), (byte) ((m.level() + 1) % 3))).bounds(left + 210, y, 110, 20).build());
+                    b -> c.setLevel(m.name(), (byte) ((m.level() + 1) % 3))).bounds(left + 154, y, 96, 20).build());
+                if (!m.name().equalsIgnoreCase(self))
+                    addRenderableWidget(Button.builder(Component.literal("Kick"), b -> c.kick(m.name())).bounds(left + 254, y, 66, 20).build());
+            }
             y += 22;
         }
         if (members.size() > MAX_MEMBERS) { addRenderableWidget(new StringWidget(left, y, 320, 12, Component.literal("\u2195 " + (scroll + 1) + "\u2013" + end + " / " + members.size()), this.font)); y += 14; }
 
         y += 6;
-        if (c.canInvite()) {
-            inviteField = new EditBox(this.font, left, y, 150, 20, Component.literal("invite"));
-            inviteField.setHint(Component.literal("Player name"));
-            inviteField.setValue(savedInvite);
-            addRenderableWidget(inviteField);
-            addRenderableWidget(Button.builder(Component.literal("as: " + PlaylistScreen.levelName(inviteLevel)), b -> {
-                inviteLevel = (byte) ((inviteLevel + 1) % (c.myLevel() + 1));
-                b.setMessage(Component.literal("as: " + PlaylistScreen.levelName(inviteLevel)));
-            }).bounds(left + 154, y, 90, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Invite"), b -> {
-                String n = inviteField.getValue().trim();
-                if (!n.isEmpty()) { c.invite(n, inviteLevel); inviteField.setValue(""); savedInvite = ""; }
-            }).bounds(left + 248, y, 72, 20).build());
-            y += 24;
-            addRenderableWidget(Button.builder(Component.literal("Invite from list\u2026"), b -> this.minecraft.setScreenAndShow(new InviteScreen())).bounds(left, y, 320, 20).build());
-        }
+        if (c.canInvite())
+            addRenderableWidget(Button.builder(Component.literal("Invite players\u2026"), b -> this.minecraft.setScreenAndShow(new InviteScreen())).bounds(left, y, 320, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))
             .bounds(left, this.height - 28, 320, 20).build());
@@ -84,7 +68,6 @@ public final class PartyScreen extends Screen {
     public void tick() {
         PlayerController c = PlayerController.INSTANCE;
         if (!c.inParty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
-        if (inviteField != null) savedInvite = inviteField.getValue();
         if (!signature().equals(lastSig)) rebuildWidgets();
     }
 
