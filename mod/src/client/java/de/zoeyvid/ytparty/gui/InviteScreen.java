@@ -6,6 +6,7 @@ import de.zoeyvid.ytparty.net.SyncProtocol;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.StringWidget;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.PlayerInfo;
@@ -65,7 +66,7 @@ public final class InviteScreen extends Screen {
             addRenderableWidget(new StringWidget(left, y + 6, 124, 12, Component.literal(name), this.font));
             for (byte lvl = 0; lvl <= 2; lvl++) {
                 byte at = lvl;
-                Button b = addRenderableWidget(Button.builder(Component.literal(PlaylistScreen.levelName(lvl)), btn -> c.invite(name, at)).bounds(left + 128 + lvl * 64, y, 60, 20).build());
+                Button b = addRenderableWidget(Button.builder(Component.literal(PlaylistScreen.levelName(lvl)), btn -> c.invite(name, at)).tooltip(Tooltip.create(Component.literal("Invite as " + PlaylistScreen.levelName(lvl)))).bounds(left + 128 + lvl * 64, y, 60, 20).build());
                 b.active = lvl <= c.myLevel();
             }
         }

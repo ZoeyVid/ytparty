@@ -4,6 +4,7 @@ import de.zoeyvid.ytparty.PlayerController;
 import de.zoeyvid.ytparty.net.SyncProtocol;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -31,10 +32,10 @@ public final class PartyScreen extends Screen {
         int y = top;
         if (c.canManage()) {
             addRenderableWidget(Button.builder(Component.literal("Public: " + (c.isPublic() ? "On" : "Off")),
-                b -> c.setPublic(!c.isPublic(), c.publicJoinLevel())).bounds(left, y, 150, 20).build());
+                b -> c.setPublic(!c.isPublic(), c.publicJoinLevel())).tooltip(Tooltip.create(Component.literal("Anyone can join a public party without an invite"))).bounds(left, y, 150, 20).build());
             byte joinLvl = c.publicJoinLevel();
             addRenderableWidget(Button.builder(Component.literal("Join as: " + PlaylistScreen.levelName(joinLvl)),
-                b -> c.setPublic(c.isPublic(), (byte) (joinLvl >= 2 ? 0 : 2))).bounds(left + 154, y, 166, 20).build())
+                b -> c.setPublic(c.isPublic(), (byte) (joinLvl >= 2 ? 0 : 2))).tooltip(Tooltip.create(Component.literal("Level that public joiners receive"))).bounds(left + 154, y, 166, 20).build())
                 .active = c.isPublic();
             y += 26;
         }
@@ -48,9 +49,9 @@ public final class PartyScreen extends Screen {
             addRenderableWidget(new StringWidget(left, y + 6, 150, 12, label, this.font));
             if (c.canManage()) {
                 addRenderableWidget(Button.builder(Component.literal(PlaylistScreen.levelName(m.level())),
-                    b -> c.setLevel(m.name(), (byte) ((m.level() + 1) % 3))).bounds(left + 154, y, 96, 20).build());
+                    b -> c.setLevel(m.name(), (byte) ((m.level() + 1) % 3))).tooltip(Tooltip.create(Component.literal("Click to change this member's level"))).bounds(left + 154, y, 140, 20).build());
                 if (!m.name().equalsIgnoreCase(self))
-                    addRenderableWidget(Button.builder(Component.literal("Kick"), b -> c.kick(m.name())).bounds(left + 254, y, 66, 20).build());
+                    addRenderableWidget(Button.builder(Component.literal("\u2715"), b -> c.kick(m.name())).tooltip(Tooltip.create(Component.literal("Remove from party"))).bounds(left + 298, y, 22, 20).build());
             }
             y += 22;
         }
@@ -58,7 +59,7 @@ public final class PartyScreen extends Screen {
 
         y += 6;
         if (c.canInvite())
-            addRenderableWidget(Button.builder(Component.literal("Invite players\u2026"), b -> this.minecraft.setScreenAndShow(new InviteScreen())).bounds(left, y, 320, 20).build());
+            addRenderableWidget(Button.builder(Component.literal("Invite players\u2026"), b -> this.minecraft.setScreenAndShow(new InviteScreen())).tooltip(Tooltip.create(Component.literal("Invite online players"))).bounds(left, y, 320, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))
             .bounds(left, this.height - 28, 320, 20).build());

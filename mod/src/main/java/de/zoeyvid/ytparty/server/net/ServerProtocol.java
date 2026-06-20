@@ -30,7 +30,6 @@ public final class ServerProtocol {
     public static final byte C2S_SET_PUBLIC = 11;
     public static final byte C2S_SET_AUTOREMOVE = 12;
     public static final byte C2S_LIST_PUBLIC = 13;
-    public static final byte C2S_REPORT_POSITION = 14;
     public static final byte C2S_SET_SPONSORBLOCK = 15;
     public static final byte C2S_SET_REPEAT = 16;
     public static final byte C2S_TRACK_ENDED = 17;
