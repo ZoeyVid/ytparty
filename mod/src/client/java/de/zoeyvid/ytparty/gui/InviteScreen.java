@@ -1,6 +1,7 @@
 package de.zoeyvid.ytparty.gui;
 
 import de.zoeyvid.ytparty.PlayerController;
+import de.zoeyvid.ytparty.relay.RelayClient;
 import de.zoeyvid.ytparty.net.SyncProtocol;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
@@ -22,20 +23,22 @@ public final class InviteScreen extends Screen {
     private int scroll;
     private boolean refocus = true;
     private String lastSig = "";
+    private boolean requestedPlayers;
 
     public InviteScreen() { super(Component.literal("Invite")); }
 
     private List<String> matches() {
         Minecraft mc = Minecraft.getInstance();
-        List<String> out = new ArrayList<>();
-        if (mc.getConnection() == null) return out;
         String self = mc.getUser().getName();
         String f = savedSearch.trim().toLowerCase(Locale.ROOT);
         List<String> members = new ArrayList<>();
-        for (SyncProtocol.Member m : PlayerController.INSTANCE.members()) members.add(m.name());
-        for (PlayerInfo info : mc.getConnection().getOnlinePlayers()) {
-            String n = info.getProfile().name();
-            if (n.equalsIgnoreCase(self) || members.contains(n)) continue;
+        for (SyncProtocol.Member m : PlayerController.INSTANCE.members()) members.add(m.name().toLowerCase(Locale.ROOT));
+        List<String> names = new ArrayList<>();
+        if (RelayClient.INSTANCE.connected()) names.addAll(PlayerController.INSTANCE.relayPlayers());
+        else if (mc.getConnection() != null) for (PlayerInfo info : mc.getConnection().getOnlinePlayers()) names.add(info.getProfile().name());
+        List<String> out = new ArrayList<>();
+        for (String n : names) {
+            if (n.equalsIgnoreCase(self) || members.contains(n.toLowerCase(Locale.ROOT))) continue;
             if (!f.isEmpty() && !n.toLowerCase(Locale.ROOT).contains(f)) continue;
             out.add(n);
         }
@@ -46,9 +49,10 @@ public final class InviteScreen extends Screen {
     @Override
     protected void init() {
         PlayerController c = PlayerController.INSTANCE;
-        if (!c.inParty() || !c.canInvite()) { this.minecraft.setScreen(c.inParty() ? new PartyScreen() : new PlaylistScreen()); return; }
+        if (!c.inParty() || !c.canInvite()) { this.minecraft.setScreenAndShow(c.inParty() ? new PartyScreen() : new PlaylistScreen()); return; }
         if (inviteLevel < 0) inviteLevel = (byte) Math.min(1, c.myLevel());
         inviteLevel = (byte) Math.min(inviteLevel, c.myLevel());
+        if (RelayClient.INSTANCE.connected() && !requestedPlayers) { c.requestPlayerList(); requestedPlayers = true; }
         lastSig = signature();
         int left = this.width / 2 - 160;
         addRenderableWidget(new StringWidget(left, 12, 320, 12, Component.literal("Invite to party " + c.partyId()), this.font));
@@ -78,14 +82,14 @@ public final class InviteScreen extends Screen {
         if (m.isEmpty()) addRenderableWidget(new StringWidget(left, rowTop + 4, 320, 12, Component.literal(Minecraft.getInstance().getConnection() == null ? "Not on a server \u2014 type a name above" : "No matching players \u2014 type a name above"), this.font));
         else if (m.size() > PICK_ROWS) addRenderableWidget(new StringWidget(left, rowTop + PICK_ROWS * 22 + 2, 320, 12, Component.literal("\u2195 " + (scroll + 1) + "\u2013" + end + " / " + m.size()), this.font));
 
-        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreen(new PartyScreen())).bounds(left, this.height - 28, 320, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PartyScreen())).bounds(left, this.height - 28, 320, 20).build());
         if (refocus) { setInitialFocus(search); search.moveCursorToEnd(false); }
     }
 
     @Override
     public void tick() {
         PlayerController c = PlayerController.INSTANCE;
-        if (!c.inParty() || !c.canInvite()) { this.minecraft.setScreen(c.inParty() ? new PartyScreen() : new PlaylistScreen()); return; }
+        if (!c.inParty() || !c.canInvite()) { this.minecraft.setScreenAndShow(c.inParty() ? new PartyScreen() : new PlaylistScreen()); return; }
         if (search != null) savedSearch = search.getValue();
         refocus = search != null && search.isFocused();
         if (!signature().equals(lastSig)) rebuildWidgets();
@@ -106,7 +110,8 @@ public final class InviteScreen extends Screen {
         StringBuilder sb = new StringBuilder();
         sb.append(savedSearch).append('|').append(scroll).append('|').append(inviteLevel).append('|').append(PlayerController.INSTANCE.partyId());
         Minecraft mc = Minecraft.getInstance();
-        if (mc.getConnection() != null) for (PlayerInfo p : mc.getConnection().getOnlinePlayers()) sb.append('|').append(p.getProfile().name());
+        if (RelayClient.INSTANCE.connected()) for (String n : PlayerController.INSTANCE.relayPlayers()) sb.append('@').append(n);
+        else if (mc.getConnection() != null) for (PlayerInfo p : mc.getConnection().getOnlinePlayers()) sb.append('|').append(p.getProfile().name());
         for (SyncProtocol.Member m : PlayerController.INSTANCE.members()) sb.append('#').append(m.name());
         return sb.toString();
     }

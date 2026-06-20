@@ -112,7 +112,7 @@ console (lost on the next restart).
 
 ## Building
 
-Mod + plugin need **JDK 25**, the relay needs **Go 1.24**. The Gradle wrapper is included.
+Mod + plugin need **JDK 25**, the relay needs **Go 1.26**. The Gradle wrapper is included.
 
 ```
 cd mod    && ./gradlew shadowJar serverJar   # bundle.jar (~33 MB) + server.jar (~21 KB)

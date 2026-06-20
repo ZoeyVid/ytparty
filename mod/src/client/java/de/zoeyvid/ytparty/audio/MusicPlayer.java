@@ -15,6 +15,8 @@ import com.sedmelluq.discord.lavaplayer.track.playback.MutableAudioFrame;
 import dev.lavalink.youtube.YoutubeAudioSourceManager;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -26,6 +28,7 @@ public final class MusicPlayer {
     private final OpenAlOutput out = new OpenAlOutput(FORMAT.sampleRate, FORMAT.maximumChunkSize());
     private volatile boolean running = true;
     private Runnable onEnd = () -> {};
+    private AudioTrack lastTrack;
 
     public MusicPlayer() {
         manager.getConfiguration().setOutputFormat(FORMAT);
@@ -42,10 +45,27 @@ public final class MusicPlayer {
 
     public void setOnEnd(Runnable r) { onEnd = r != null ? r : () -> {}; }
 
+    public void resolveAll(String identifier, Consumer<List<String[]>> onDone) {
+        manager.loadItem(identifier, new AudioLoadResultHandler() {
+            public void trackLoaded(AudioTrack track) { onDone.accept(List.<String[]>of(new String[]{identifier, track.getInfo().title})); }
+            public void playlistLoaded(AudioPlaylist list) {
+                List<String[]> tracks = new ArrayList<>();
+                for (AudioTrack t : list.getTracks()) tracks.add(new String[]{t.getInfo().uri, t.getInfo().title});
+                onDone.accept(tracks);
+            }
+            public void noMatches() { onDone.accept(List.of()); }
+            public void loadFailed(FriendlyException e) { onDone.accept(List.of()); }
+        });
+    }
+
     public void resolve(String identifier, BiConsumer<String, String> onResolved, Runnable onFail) {
         manager.loadItem(identifier, new AudioLoadResultHandler() {
             public void trackLoaded(AudioTrack track) { onResolved.accept(identifier, track.getInfo().title); }
-            public void playlistLoaded(AudioPlaylist list) { onFail.run(); }
+            public void playlistLoaded(AudioPlaylist list) {
+                if (list.getTracks().isEmpty()) { onFail.run(); return; }
+                AudioTrack first = list.getTracks().getFirst();
+                onResolved.accept(first.getInfo().uri, first.getInfo().title);
+            }
             public void noMatches() { onFail.run(); }
             public void loadFailed(FriendlyException e) { onFail.run(); }
         });
@@ -54,20 +74,23 @@ public final class MusicPlayer {
     public void playIdentifier(String identifier, Consumer<String> onTitle) {
         manager.loadItem(identifier, new AudioLoadResultHandler() {
             public void trackLoaded(AudioTrack track) { start(track, onTitle); }
-            public void playlistLoaded(AudioPlaylist list) { start(pick(list), onTitle); }
+            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) onEnd.run(); else start(pick(list), onTitle); }
             public void noMatches() { onEnd.run(); }
             public void loadFailed(FriendlyException e) { onEnd.run(); }
         });
     }
 
     private void start(AudioTrack track, Consumer<String> onTitle) {
+        lastTrack = track;
         out.requestFlush();
         player.playTrack(track);
         if (onTitle != null) onTitle.accept(track.getInfo().title);
     }
 
+    public void repeatCurrent() { if (lastTrack != null) { out.requestFlush(); player.playTrack(lastTrack.makeClone()); } }
+
     private static AudioTrack pick(AudioPlaylist list) {
-        return list.getSelectedTrack() != null ? list.getSelectedTrack() : list.getTracks().get(0);
+        return list.getSelectedTrack() != null ? list.getSelectedTrack() : list.getTracks().getFirst();
     }
 
     public void seekBy(long deltaMs) {
@@ -86,7 +109,7 @@ public final class MusicPlayer {
     public void setPaused(boolean paused) { player.setPaused(paused); out.requestPause(paused); }
     public boolean isPaused() { return player.isPaused(); }
     public void stop() { player.stopTrack(); out.requestFlush(); }
-    public void setVolume(int v) { player.setVolume(Math.max(0, Math.min(200, v))); }
+    public void setVolume(int v) { out.setGain(Math.clamp(v, 0, 200) / 100f); }
 
     public void close() { running = false; }
 

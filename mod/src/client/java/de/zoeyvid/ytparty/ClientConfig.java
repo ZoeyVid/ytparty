@@ -1,5 +1,6 @@
 package de.zoeyvid.ytparty;
 
+import de.zoeyvid.ytparty.audio.SponsorBlock;
 import de.zoeyvid.ytparty.playlist.Track;
 import de.zoeyvid.ytparty.relay.RelayClient;
 import net.fabricmc.loader.api.FabricLoader;
@@ -16,12 +17,21 @@ import java.util.Properties;
 public final class ClientConfig {
     private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("ytparty-client.properties");
     private static volatile boolean loaded;
-    private static byte sbFlags = de.zoeyvid.ytparty.audio.SponsorBlock.FLAG_ALL;
+    private static byte sbFlags = SponsorBlock.FLAG_ALL;
+    private static boolean hudEnabled = true;
+    private static int hudCorner = 1;
+    private static boolean hudAlways = false;
 
     private ClientConfig() {}
 
     public static byte sbFlags() { return sbFlags; }
     public static void setSbFlags(byte f) { sbFlags = f; save(); }
+    public static boolean hudEnabled() { return hudEnabled; }
+    public static int hudCorner() { return hudCorner; }
+    public static boolean hudAlways() { return hudAlways; }
+    public static void setHudEnabled(boolean v) { hudEnabled = v; save(); }
+    public static void setHudCorner(int v) { hudCorner = v; save(); }
+    public static void setHudAlways(boolean v) { hudAlways = v; save(); }
 
     public static synchronized void load() {
         Properties p = new Properties();
@@ -33,13 +43,17 @@ public final class ClientConfig {
         RelayClient.rememberPassword = Boolean.parseBoolean(p.getProperty("relay.remember-password", "true"));
         if (RelayClient.rememberPassword) RelayClient.password = p.getProperty("relay.password", "");
         PlayerController.INSTANCE.setVolume(parseInt(p.getProperty("volume", "100"), 100));
-        sbFlags = (byte) parseInt(p.getProperty("sponsorblock.flags", String.valueOf(de.zoeyvid.ytparty.audio.SponsorBlock.FLAG_ALL)), de.zoeyvid.ytparty.audio.SponsorBlock.FLAG_ALL);
+        sbFlags = (byte) parseInt(p.getProperty("sponsorblock.flags", String.valueOf(SponsorBlock.FLAG_ALL)), SponsorBlock.FLAG_ALL);
         if (Boolean.parseBoolean(p.getProperty("repeat", "false"))) PlayerController.INSTANCE.toggleRepeat();
+        if (!Boolean.parseBoolean(p.getProperty("autoremove", "true"))) PlayerController.INSTANCE.toggleAutoRemove();
+        hudEnabled = Boolean.parseBoolean(p.getProperty("hud.enabled", "true"));
+        hudCorner = parseInt(p.getProperty("hud.corner", "1"), 1);
+        hudAlways = Boolean.parseBoolean(p.getProperty("hud.always", "false"));
         int n = parseInt(p.getProperty("track.count", "0"), 0);
         List<Track> tracks = new ArrayList<>();
         for (int i = 0; i < n; i++) {
             String uri = p.getProperty("track." + i + ".uri");
-            if (uri != null) tracks.add(new Track(uri, p.getProperty("track." + i + ".title", ""), ""));
+            if (uri != null) tracks.add(new Track(i + 1, uri, p.getProperty("track." + i + ".title", ""), ""));
         }
         PlayerController.INSTANCE.loadSolo(tracks);
         loaded = true;
@@ -55,6 +69,10 @@ public final class ClientConfig {
         p.setProperty("volume", Integer.toString(PlayerController.INSTANCE.volume()));
         p.setProperty("sponsorblock.flags", Integer.toString(sbFlags));
         p.setProperty("repeat", Boolean.toString(PlayerController.INSTANCE.repeatOne()));
+        p.setProperty("autoremove", Boolean.toString(PlayerController.INSTANCE.autoRemovePlayed()));
+        p.setProperty("hud.enabled", Boolean.toString(hudEnabled));
+        p.setProperty("hud.corner", Integer.toString(hudCorner));
+        p.setProperty("hud.always", Boolean.toString(hudAlways));
         List<Track> tracks = PlayerController.INSTANCE.soloTracks();
         p.setProperty("track.count", Integer.toString(tracks.size()));
         for (int i = 0; i < tracks.size(); i++) {

@@ -39,7 +39,7 @@ public final class SponsorBlockScreen extends Screen {
         if (c.inParty() && !c.canManage())
             addRenderableWidget(new StringWidget(left, top + 106, 320, 12, Component.literal("Only a manager can change these."), this.font));
 
-        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreen(new PlaylistScreen()))
+        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))
             .bounds(left, this.height - 28, 320, 20).build());
     }
 

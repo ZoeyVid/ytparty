@@ -30,7 +30,7 @@ docs and identifiers are written in English.
 
 ## Build & run
 
-Toolchain: **JDK 25** (records, `Math.clamp`, ML-KEM via SunJCE), **Gradle 9.4**, **Go 1.24+**
+Toolchain: **JDK 25** (records, `Math.clamp`, ML-KEM via SunJCE), **Gradle 9.6**, **Go 1.26+**
 (stdlib `crypto/ecdh` + `crypto/mlkem`).
 
 ```sh
@@ -59,8 +59,8 @@ and pass `-Dorg.gradle.java.installations.paths=$JAVA_HOME`. Not needed on a nor
 ## Minecraft 26.1 / Fabric gotchas (hard-won — verify with `javap` before trusting memory)
 
 - **26.1 is fully unobfuscated** (official Mojang names). The mod's `build.gradle` must **not** set
-  `mappings loom.officialMojangMappings()`. Loom 1.15-SNAPSHOT, Loader 0.18.4, Fabric API
-  `0.152.1+26.1.2`, Shadow 9.0.0. Paper: `io.papermc.paper:paper-api:26.1.2.build.+`.
+  `mappings loom.officialMojangMappings()`. Loom 1.17.11, Loader 0.18.4, Fabric API
+  `0.152.1+26.1.2`, Shadow 9.4.2. Paper: `io.papermc.paper:paper-api:26.1.2.build.+`.
 - **`GuiGraphics` does not exist in 26.1.** Screens use the extracted render-state pipeline
   (`extractRenderState(GuiGraphicsExtractor,…)`), so you cannot draw custom primitives the old way.
   **Stick to widgets** (`StringWidget`, `Button`, `EditBox`, `AbstractSliderButton` via
@@ -81,32 +81,56 @@ and pass `-Dorg.gradle.java.installations.paths=$JAVA_HOME`. Not needed on a nor
 ## Wire protocol (see `docs/PROTOCOL.md` for the full table)
 
 Raw `DataOutputStream` bytes on `ytparty:sync`; the relay wraps the *same* payload in an encrypted
-frame with a 4-byte big-endian length prefix. C2S ops 0–13 (12 = `SET_AUTOREMOVE`, 13 = `LIST_PUBLIC`);
-S2C 0–5 (0 = `STATE`, 5 = `PUBLIC_LIST`). `STATE` carries `autoRemovePlayed` (after `currentIndex`),
-three UTF strings per track (`uri`, `title`, `requester` — server/relay fills requester from sender on
-ADD, never sent by the client), and a per-member `duplicate` flag; only the relay ever sets `duplicate`,
-the MC backends always send `false`. `PUBLIC_LIST` is relay-only; the MC backends ignore op 13.
-Levels: 0 LISTEN, 1 INVITE, 2 MANAGE. Volume is never synced (client-local).
+frame with a 4-byte big-endian length prefix. C2S ops 0–18 (8 = `SET_TRACK`, 12 = `SET_AUTOREMOVE`,
+13 = `LIST_PUBLIC`, 14 = `REPORT_POSITION`, 15 = `SET_SPONSORBLOCK`, 16 = `SET_REPEAT`,
+17 = `TRACK_ENDED`, 18 = `SET_PLAYLIST`); S2C 0–5 (0 = `STATE`, 5 = `PUBLIC_LIST`). `STATE` carries (after
+`currentIndex`) `autoRemovePlayed`, `sponsorBlockFlags` (byte), `repeatOne` (bool) and a monotonic
+`generation` (int), then per track an `id` (int) + three UTF strings (`uri`, `title`, `requester` — backend
+assigns the id and fills requester from the sender on ADD, never sent by the client), and per member just
+`name` + `level`. `PUBLIC_LIST` is relay-only; the MC backends ignore op 13. Levels: 0 LISTEN, 1 INVITE,
+2 MANAGE. Volume, looping and SponsorBlock skipping are client-local; the backend is the source of truth for
+everything else.
 
-**Auto-remove** (default on, synced): drop a track when it finishes or is skipped to the immediate
-next index; a manual jump removes nothing. Backends apply this on `SET_INDEX` (target == `curIndex+1`
-→ advance → remove current; anything else → jump).
+**`SET_PLAYLIST`** (op 18) replaces the whole playlist in one frame (backend assigns fresh ids + requester);
+the client uses it for the solo→party carry-over (`CREATE` then one `SET_PLAYLIST`) instead of N `ADD`s, so
+import is a single message and the per-connection message rate limit could be tightened (burst 16, refill
+4/s).
 
-**Drift correction:** among all managers, only the **drift leader** — the manager with the
-lexicographically smallest name — sends `SET_POSITION` every 5 seconds while playing; followers only
-apply the resulting SEEK if they are more than 2 seconds off. Electing a single sender (client-side,
-from the member names, which is order-independent — the relay sends members in random order) avoids
-multiple managers fighting each other; the 2-second threshold avoids constant micro-seeks.
+**One identity per party:** a UUID or username can be in a party only once — the relay refuses a `JOIN` whose
+UUID/username already belongs to a member (the same identity may still hold several relay connections, just
+not sit in one party twice). The MC backends use authenticated UUIDs (one player = one connection) so this is
+automatic there. There is no longer a `duplicate` flag in STATE.
 
-**Auto-remove** (default on, synced): drop a track when it finishes or is skipped to the immediate
-next index; a manual jump removes nothing. Backends apply this on `SET_INDEX` (target == `curIndex+1`
-→ advance → remove current; anything else → jump).
+**Stable track IDs:** `REMOVE`, `MOVE` and `SET_TRACK` reference a backend-assigned per-track id, not a
+list index, so concurrent manager edits (or an edit racing an auto-remove) never hit the wrong track. The
+client maps id ↔ row; `SET_TRACK` with an unknown id is ignored.
+
+**Advance vs skip:** a track ending naturally is `TRACK_ENDED` (backend advances and applies `autoRemove`
+— it decides deletion from its own config, no flag is sent); a manual skip/previous/row-click is
+`SET_TRACK` and never deletes. The trigger is detected locally but the mutation goes through the backend so
+the shared list stays correct for late joiners.
+
+**Generation:** bumped whenever the *current track's identity* changes (`SET_TRACK` to another track,
+`TRACK_ENDED`, removal of the current track — not a `MOVE` of it). `TRACK_ENDED` and `REPORT_POSITION` both
+carry it; the backend acts only on a matching generation, which de-duplicates several managers' staggered
+track-ends and discards drift reports that refer to an already-changed track.
+
+**Repeat & SponsorBlock are local:** `SET_REPEAT`/`SET_SPONSORBLOCK` only sync the setting; each client
+loops (clone-replay) or skips segments by changing its own position, which is safe because it never touches
+the shared list. After any local jump the client suppresses its own drift reports for ~2 s.
+
+**Drift correction (server-side median):** managers send `REPORT_POSITION(generation, ms)` every 5 s; the
+backend extrapolates each to "now", drops stale (>15 s) / non-manager entries, takes the **median**, and
+broadcasts one `SEEK`. Clients act only if >3 s off. The median is robust against a single stalled/buffering
+manager; this replaced the old single "drift leader" scheme.
 
 **Relay-only** identity frame: `blob(name) ‖ blob(uuid) ‖ blob(token)` (each blob = u16 len + bytes);
 ack = `{1} ‖ blob(token)`. First connect sends an empty token, relay issues one (TOFU, RAM-only,
 expires). The token is **not persisted to disk on the client** — it lives in RAM only and is lost on
 restart; the client then presents an empty token and the relay issues a new one. Relay keys *all*
-state by **token**, not UUID, so duplicate UUIDs are kept apart and flagged.
+state by **token**, not UUID, so distinct connections stay distinct even with the same claimed UUID; a
+second connection whose identity is already in a party is refused entry to *that* party (one identity per
+party) but may join elsewhere.
 A new connection with an existing live token **replaces** it and keeps membership; a genuine
 disconnect leaves the party.
 
@@ -114,10 +138,10 @@ disconnect leaves the party.
 
 Hand-assembled from stdlib primitives — **not** TLS. Per connection: ephemeral **X25519 + ML-KEM-768**
 hybrid KEM; the PBKDF2-derived PSK is also mixed into the session key, so a wrong PSK fails the GCM
-tag. The relay derives the PSK key with Go 1.24's stdlib `crypto/pbkdf2`; the mod hand-rolls the same
+tag. The relay derives the PSK key with Go's stdlib `crypto/pbkdf2`; the mod hand-rolls the same
 PBKDF2-HMAC-SHA256 (JDK's built-in would re-encode the password and diverge) — both yield identical
 bytes for ASCII PSKs. AES-256-GCM, 12-byte nonce `[dir|000|ctr8BE]`, direction-separated counters.
-Forward-secret, replay-safe. Interop is byte-for-byte Java 25 ↔ Go 1.24. **PSK must be printable ASCII**
+Forward-secret, replay-safe. Interop is byte-for-byte Java 25 ↔ Go 1.26. **PSK must be printable ASCII**
 (Java Latin-1 vs Go UTF-8 would diverge), enforced on both ends.
 
 ## Permissions (enforced server-side on all three backends)

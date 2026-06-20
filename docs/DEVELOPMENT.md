@@ -6,16 +6,16 @@
 |-------|-------|
 | Minecraft | 26.1.2 (Java 25, `year.drop.hotfix` scheme) |
 | Mappings | official Mojang mappings (Yarn is gone for 26.1) |
-| Fabric | Loom 1.15, Gradle 9.4, Loader 0.18.4, API `0.152.1+26.1.2` |
+| Fabric | Loom 1.17.11, Gradle 9.6, Loader 0.18.4, API `0.152.1+26.1.2` |
 | Paper | `io.papermc.paper:paper-api:26.1.2.build.+` |
 | LavaPlayer | `dev.arbjerg:lavaplayer:2.2.6` (Maven Central) |
 | YouTube source | `dev.lavalink.youtube:common:1.18.1` (`https://maven.lavalink.dev/releases`) |
-| Relay | Go 1.24 (stdlib only) |
+| Relay | Go 1.26 (stdlib only) |
 | Packages | `de.zoeyvid.ytparty` (mod + plugin), Go module `zoeyvid.de/ytparty-relay` |
 
 ## Building
 
-Mod and plugin need **JDK 25**; the relay needs Go 1.24. The Gradle wrapper (9.4.0) is included.
+Mod and plugin need **JDK 25**; the relay needs Go 1.26. The Gradle wrapper (9.6.0) is included.
 
 ```
 cd mod    && ./gradlew shadowJar serverJar   # build/libs/ytparty-0.1.0-bundle.jar (~33 MB) + -server.jar (~21 KB)
@@ -117,7 +117,7 @@ relay = environment variables. **No JSON anywhere.** Every option with its defau
   only on real state change; OpenAL runs single-threaded on the pump thread.
 - **String fidelity:** name/uri/title are passed through the relay as opaque blobs (no re-encoding →
   emoji preserved).
-- **Version-current APIs:** ML-KEM-768 via the JDK 25 KEM API and Go 1.24 `crypto/mlkem` (both stdlib);
+- **Version-current APIs:** ML-KEM-768 via the JDK 25 KEM API and Go 1.26 `crypto/mlkem` (both stdlib);
   `Math.clamp` (JDK 21+) on the client; `min`/`max` builtins and the `slices` package (Go 1.21+) in the
   relay. (PBKDF2 stays hand-rolled on both sides for byte-exact cross-language parity; the JDK 25 KDF API
   only covers HKDF, not PBKDF2.)

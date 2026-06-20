@@ -17,6 +17,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.BlockingQueue;
 
 public final class RelayClient {
@@ -34,7 +35,7 @@ public final class RelayClient {
 
     private volatile Status status = Status.DISCONNECTED;
     private volatile String message = "";
-    private volatile int generation;
+    private final AtomicInteger generation = new AtomicInteger();
     private volatile BlockingQueue<byte[]> sendQueue;
     private Socket socket;
 
@@ -56,7 +57,7 @@ public final class RelayClient {
         ClientConfig.save();
         status = Status.CONNECTING;
         message = "connecting\u2026";
-        int gen = ++generation;
+        int gen = generation.incrementAndGet();
         Thread t = new Thread(() -> run(gen, h, p, pass), "ytparty-relay-reader");
         t.setDaemon(true);
         t.start();
@@ -112,9 +113,8 @@ public final class RelayClient {
             byte[] tb = new byte[tlen];
             ackIn.readFully(tb);
             token = new String(tb, StandardCharsets.UTF_8);
-            ClientConfig.save();
 
-            if (gen != generation) { s.close(); return; }
+            if (gen != generation.get()) { s.close(); return; }
             BlockingQueue<byte[]> queue = new ArrayBlockingQueue<>(1024);
             synchronized (this) { socket = s; sendQueue = queue; }
             status = Status.CONNECTED;
@@ -125,7 +125,7 @@ public final class RelayClient {
             Minecraft.getInstance().execute(() -> { PlayerController.INSTANCE.onPartyLeft(); PlayerController.INSTANCE.setSink(this::send); });
 
             long recvCtr = 1;
-            while (gen == generation) {
+            while (gen == generation.get()) {
                 byte[] frame = readFrame(in);
                 byte[] payload;
                 try { payload = RelayCrypto.decrypt(session, RelayCrypto.nonce(1, recvCtr), frame); }
@@ -144,7 +144,7 @@ public final class RelayClient {
     private void writerLoop(int gen, BlockingQueue<byte[]> queue, OutputStream os, byte[] session) {
         long sendCtr = 1;
         try {
-            while (gen == generation) {
+            while (gen == generation.get()) {
                 byte[] data = queue.take();
                 if (data.length == 0) return;
                 writeFrame(os, RelayCrypto.encrypt(session, RelayCrypto.nonce(0, sendCtr), data));
@@ -158,7 +158,7 @@ public final class RelayClient {
 
     private synchronized void cleanup(String msg) {
         if (status == Status.DISCONNECTED) return;
-        generation++;
+        generation.incrementAndGet();
         status = Status.DISCONNECTED;
         message = msg;
         BlockingQueue<byte[]> q = sendQueue;

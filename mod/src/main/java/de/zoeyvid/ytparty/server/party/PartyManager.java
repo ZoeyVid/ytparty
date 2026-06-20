@@ -1,6 +1,8 @@
 package de.zoeyvid.ytparty.server.party;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -24,6 +26,8 @@ public final class PartyManager {
 
     public Party of(UUID player) { String id = playerToParty.get(player); return id != null ? byId.get(id) : null; }
     public Party get(String id) { return byId.get(id); }
+    public List<Party> publicParties() { List<Party> out = new ArrayList<>(); for (Party p : byId.values()) if (p.isPublic) out.add(p); out.sort((a, b) -> Integer.compare(b.members.size(), a.members.size())); return out; }
+    public void forgetInvites(UUID u) { for (Party p : byId.values()) p.invites.remove(u); }
 
     public Party create(UUID host) {
         String id = newId();

@@ -21,6 +21,8 @@ final class OpenAlOutput {
     private boolean paused;
     private volatile boolean wantPaused;
     private volatile boolean wantFlush;
+    private volatile float wantGain = 1f;
+    private float appliedGain = -1f;
 
     OpenAlOutput(int sampleRate, int maxChunk) {
         this.sampleRate = sampleRate;
@@ -29,9 +31,11 @@ final class OpenAlOutput {
 
     void requestPause(boolean p) { wantPaused = p; }
     void requestFlush() { wantFlush = true; }
+    void setGain(float g) { wantGain = g; }
 
     void pump(byte[] data, int len, boolean hasFrame) {
         if (!ensure()) return;
+        if (wantGain != appliedGain) { alSourcef(source, AL_GAIN, wantGain); appliedGain = wantGain; }
         if (wantFlush) { wantFlush = false; alSourceStop(source); reclaim(); }
         if (wantPaused != paused) {
             paused = wantPaused;
@@ -50,7 +54,8 @@ final class OpenAlOutput {
     }
 
     void shutdown() {
-        if (source != 0) { alSourceStop(source); alDeleteSources(source); source = 0; }
+        if (source != 0) { alSourceStop(source); reclaim(); alDeleteSources(source); source = 0; }
+        while (!free.isEmpty()) alDeleteBuffers(free.poll());
         MemoryUtil.memFree(pcm);
     }
 
@@ -66,6 +71,7 @@ final class OpenAlOutput {
             for (int i = 0; i < 16; i++) free.add(alGenBuffers());
             paused = false;
             wantPaused = false;
+            appliedGain = -1f;
         }
         return true;
     }

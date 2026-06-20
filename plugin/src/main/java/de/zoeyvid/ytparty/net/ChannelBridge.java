@@ -13,12 +13,23 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public final class ChannelBridge implements PluginMessageListener {
+    private static final double MSG_BURST = 16, MSG_RATE = 4;
+
     private final Plugin plugin;
     private final PartyManager manager;
+    private final Map<UUID, Bucket> buckets = new HashMap<>();
+
+    private static final class Bucket {
+        double tokens;
+        long last;
+        Bucket(double tokens, long last) { this.tokens = tokens; this.last = last; }
+    }
 
     public ChannelBridge(Plugin plugin, PartyManager manager) {
         this.plugin = plugin;
@@ -26,9 +37,13 @@ public final class ChannelBridge implements PluginMessageListener {
     }
 
     public void broadcast(Party party) {
+        ServerProtocol.StateTemplate t = ServerProtocol.stateTemplate(party);
         for (UUID member : party.members.keySet()) {
             Player p = Bukkit.getPlayer(member);
-            if (p != null) send(p, ServerProtocol.state(party, member));
+            if (p == null) continue;
+            byte[] msg = t.bytes().clone();
+            msg[t.levelOffset()] = party.level(member).id();
+            send(p, msg);
         }
     }
 
@@ -68,6 +83,7 @@ public final class ChannelBridge implements PluginMessageListener {
     @Override
     public void onPluginMessageReceived(String channel, Player player, byte[] message) {
         if (!channel.equals(ServerProtocol.CHANNEL) || message.length == 0) return;
+        if (!allow(player.getUniqueId())) return;
         try (DataInputStream d = new DataInputStream(new ByteArrayInputStream(message))) {
             byte op = d.readByte();
             switch (op) {
@@ -77,6 +93,7 @@ public final class ChannelBridge implements PluginMessageListener {
                 case ServerProtocol.C2S_INVITE -> handleInvite(player, d.readUTF(), d.readByte());
                 case ServerProtocol.C2S_SET_LEVEL -> handleSetLevel(player, d.readUTF(), d.readByte());
                 case ServerProtocol.C2S_SET_PUBLIC -> handleSetPublic(player, d.readBoolean(), d.readByte());
+                case ServerProtocol.C2S_LIST_PUBLIC -> send(player, ServerProtocol.publicList(manager.publicParties()));
                 default -> handleControlOp(player, op, d);
             }
         } catch (IOException ignored) {}
@@ -112,38 +129,65 @@ public final class ChannelBridge implements PluginMessageListener {
         Party p = manager.of(player.getUniqueId());
         if (p == null) return;
         if (!p.canManage(player.getUniqueId())) { send(player, ServerProtocol.state(p, player.getUniqueId())); return; }
+        int oldCur = p.curTrackId();
         switch (op) {
             case ServerProtocol.C2S_ADD -> {
                 String uri = d.readUTF();
                 String title = cap(d.readUTF(), 200);
                 if (uri.isEmpty() || uri.length() > 1000 || p.tracks.size() >= 500) return;
-                p.tracks.add(new Party.TrackRef(uri, title, player.getName()));
+                p.tracks.add(new Party.TrackRef(p.nextTrackId++, uri, title, player.getName()));
                 if (p.currentIndex < 0) p.currentIndex = 0;
             }
             case ServerProtocol.C2S_REMOVE -> {
-                int i = d.readInt();
-                if (i >= 0 && i < p.tracks.size()) {
+                int i = p.indexOf(d.readInt());
+                if (i >= 0) {
                     p.tracks.remove(i);
                     if (i < p.currentIndex) p.currentIndex--;
                     if (p.currentIndex >= p.tracks.size()) p.currentIndex = p.tracks.size() - 1;
                 }
             }
             case ServerProtocol.C2S_MOVE -> {
-                int from = d.readInt(), to = d.readInt();
-                p.move(from, to);
-                if (from == p.currentIndex) p.currentIndex = to;
-                else if (from < p.currentIndex && to >= p.currentIndex) p.currentIndex--;
-                else if (from > p.currentIndex && to <= p.currentIndex) p.currentIndex++;
+                int from = p.indexOf(d.readInt()), to = d.readInt();
+                if (from >= 0) {
+                    to = Math.max(0, Math.min(to, p.tracks.size() - 1));
+                    p.move(from, to);
+                    if (from == p.currentIndex) p.currentIndex = to;
+                    else if (from < p.currentIndex && to >= p.currentIndex) p.currentIndex--;
+                    else if (from > p.currentIndex && to <= p.currentIndex) p.currentIndex++;
+                }
             }
-            case ServerProtocol.C2S_SET_INDEX -> {
-                int i = d.readInt();
-                if (p.autoRemovePlayed && i == p.currentIndex + 1 && p.currentIndex >= 0 && p.currentIndex < p.tracks.size()) {
+            case ServerProtocol.C2S_SET_TRACK -> {
+                int i = p.indexOf(d.readInt());
+                if (i < 0) return;
+                p.currentIndex = i;
+                p.paused = false;
+                p.mgrPos.clear();
+            }
+            case ServerProtocol.C2S_TRACK_ENDED -> {
+                int gen = d.readInt();
+                if (gen != p.generation || p.currentIndex < 0) return;
+                if (p.autoRemovePlayed && p.currentIndex < p.tracks.size()) {
                     int cur = p.currentIndex;
                     p.tracks.remove(cur);
                     p.currentIndex = Math.min(cur, p.tracks.size() - 1);
                 } else {
-                    p.currentIndex = i < -1 ? -1 : Math.min(i, p.tracks.size() - 1);
+                    p.currentIndex = Math.min(p.currentIndex + 1, p.tracks.size() - 1);
                 }
+                p.mgrPos.clear();
+            }
+            case ServerProtocol.C2S_SET_PLAYLIST -> {
+                int n = d.readInt();
+                if (n < 0 || n > 500) return;
+                List<Party.TrackRef> nt = new ArrayList<>();
+                for (int i = 0; i < n; i++) {
+                    String uri = d.readUTF();
+                    String title = cap(d.readUTF(), 200);
+                    if (uri.isEmpty() || uri.length() > 1000) continue;
+                    nt.add(new Party.TrackRef(p.nextTrackId++, uri, title, player.getName()));
+                }
+                p.tracks.clear();
+                p.tracks.addAll(nt);
+                p.currentIndex = p.tracks.isEmpty() ? -1 : 0;
                 p.paused = false;
                 p.mgrPos.clear();
             }
@@ -152,7 +196,9 @@ public final class ChannelBridge implements PluginMessageListener {
             case ServerProtocol.C2S_SET_SPONSORBLOCK -> p.sbFlags = (byte) (d.readByte() & 0x0F);
             case ServerProtocol.C2S_SET_REPEAT -> p.repeatOne = d.readBoolean();
             case ServerProtocol.C2S_REPORT_POSITION -> {
+                int gen = d.readInt();
                 long ms = d.readLong();
+                if (gen != p.generation) return;
                 p.mgrPos.put(player.getUniqueId(), new Party.MgrReport(ms, System.currentTimeMillis()));
                 driftSeek(p);
                 return;
@@ -165,6 +211,7 @@ public final class ChannelBridge implements PluginMessageListener {
             }
             default -> { return; }
         }
+        if (p.curTrackId() != oldCur) p.generation++;
         broadcast(p);
     }
 
@@ -181,6 +228,18 @@ public final class ChannelBridge implements PluginMessageListener {
     }
 
     private static String cap(String s, int max) { return s.length() <= max ? s : s.substring(0, max); }
+
+    private boolean allow(UUID u) {
+        long now = System.currentTimeMillis();
+        Bucket b = buckets.computeIfAbsent(u, k -> new Bucket(MSG_BURST, now));
+        b.tokens = Math.min(MSG_BURST, b.tokens + (now - b.last) / 1000.0 * MSG_RATE);
+        b.last = now;
+        if (b.tokens < 1) return false;
+        b.tokens--;
+        return true;
+    }
+
+    public void forget(UUID u) { buckets.remove(u); }
 
     private void send(Player player, byte[] data) { player.sendPluginMessage(plugin, ServerProtocol.CHANNEL, data); }
 }

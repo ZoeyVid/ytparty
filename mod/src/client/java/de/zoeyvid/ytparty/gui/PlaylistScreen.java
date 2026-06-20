@@ -4,11 +4,13 @@ import de.zoeyvid.ytparty.ClientConfig;
 import de.zoeyvid.ytparty.PlayerController;
 import de.zoeyvid.ytparty.net.SyncProtocol;
 import de.zoeyvid.ytparty.playlist.Track;
+import de.zoeyvid.ytparty.net.ClientSync;
 import de.zoeyvid.ytparty.relay.RelayClient;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
@@ -44,38 +46,43 @@ public final class PlaylistScreen extends Screen {
             Component.literal(c.inParty() ? "Party " + c.partyId() + " \u2014 " + levelName(c.myLevel())
                 : (RelayClient.INSTANCE.connected() ? "Relay connected" : "Local")), this.font));
 
-        urlField = new EditBox(this.font, left, top, 250, 20, Component.literal("YouTube URL"));
+        urlField = new EditBox(this.font, left, top, 200, 20, Component.literal("YouTube URL"));
         urlField.setMaxLength(2048);
         urlField.setHint(Component.literal("YouTube video URL"));
         urlField.setValue(savedUrl);
         addRenderableWidget(urlField);
-        addRenderableWidget(Button.builder(Component.literal("Add"), b -> {
+        btn("Add", () -> {
             String text = urlField.getValue().trim();
             if (!text.isEmpty()) { c.addUrl(text, null); urlField.setValue(""); savedUrl = ""; }
-        }).bounds(left + 255, top, 65, 20).build());
+        }, "Add the URL to the playlist", left + 204, top, 38);
+        btn("Edit list\u2026", () -> this.minecraft.setScreenAndShow(new PlaylistEditScreen()), "Edit the whole playlist as a text list of URLs", left + 246, top, 74);
 
         canEdit = !c.inParty() || c.canManage();
-        addRenderableWidget(Button.builder(Component.literal(c.paused() ? "Play" : "Pause"), b -> c.togglePause())
-            .bounds(left, top + 26, 74, 20).build()).active = canEdit;
-        addRenderableWidget(Button.builder(Component.literal("Skip"), b -> c.next()).bounds(left + 78, top + 26, 60, 20).build()).active = canEdit;
-        addRenderableWidget(Button.builder(Component.literal("\u2299"), b -> {
-            int idx = PlayerController.INSTANCE.currentIndex();
-            if (idx >= 0) { scrollOffset = Math.clamp(idx, 0, Math.max(0, PlayerController.INSTANCE.playlist().size() - MAX_ROWS)); rebuildWidgets(); }
-        }).bounds(left + 142, top + 26, 22, 20).build()).active = c.currentIndex() >= 0;
-        addRenderableWidget(new AbstractSliderButton(left + 168, top + 26, 152, 20, Component.literal("Vol " + c.volume()), c.volume() / 200.0) {
+
+        btn("SponsorBlock\u2026", () -> this.minecraft.setScreenAndShow(new SponsorBlockScreen()), "SponsorBlock segment-skip settings", left, top + 26, 120);
+        btn("HUD\u2026", () -> this.minecraft.setScreenAndShow(new HudScreen()), "Now-Playing HUD settings", left + 124, top + 26, 60);
+        AbstractSliderButton vol = new AbstractSliderButton(left + 188, top + 26, 132, 20, Component.literal("Vol " + c.volume()), c.volume() / 200.0) {
             @Override protected void updateMessage() { setMessage(Component.literal("Vol " + (int) (value * 200))); }
             @Override protected void applyValue() { c.setVolume((int) (value * 200)); }
             @Override public void onRelease(net.minecraft.client.input.MouseButtonEvent e) { super.onRelease(e); ClientConfig.save(); }
-        });
+        };
+        vol.setTooltip(Tooltip.create(Component.literal("Volume")));
+        addRenderableWidget(vol);
 
         timeline = new Timeline(left, top + 52, 320, 20);
+        timeline.setTooltip(Tooltip.create(Component.literal("Seek within the current track")));
         addRenderableWidget(timeline);
 
-        addRenderableWidget(Button.builder(Component.literal("Auto-remove played: " + (c.autoRemovePlayed() ? "ON" : "OFF")), b -> c.toggleAutoRemove())
-            .bounds(left, top + 78, 155, 20).build()).active = canEdit;
-        addRenderableWidget(Button.builder(Component.literal("Repeat: " + (c.repeatOne() ? "ON" : "OFF")), b -> c.toggleRepeat())
-            .bounds(left + 159, top + 78, 76, 20).build()).active = canEdit;
-        addRenderableWidget(Button.builder(Component.literal("SponsorBlock\u2026"), b -> this.minecraft.setScreen(new SponsorBlockScreen())).bounds(left + 239, top + 78, 81, 20).build());
+        btn("\u23EE", c::previous, "Previous track", left, top + 78, 22).active = canEdit;
+        btn("\u21E4", () -> seek(0), "Restart current track", left + 24, top + 78, 22).active = canEdit;
+        btn(c.paused() ? "\u25B6" : "\u23F8", c::togglePause, c.paused() ? "Play" : "Pause", left + 48, top + 78, 22).active = canEdit;
+        btn("\u23ED", c::skip, "Skip to next track", left + 72, top + 78, 22).active = canEdit;
+        btn("Repeat: " + (c.repeatOne() ? "ON" : "OFF"), c::toggleRepeat, "Repeat the current track", left + 98, top + 78, 74).active = canEdit;
+        btn("Auto-remove: " + (c.autoRemovePlayed() ? "ON" : "OFF"), c::toggleAutoRemove, "Remove each track once it finishes playing", left + 176, top + 78, 120).active = canEdit;
+        btn("\u2913", () -> {
+            int idx = c.currentIndex();
+            if (idx >= 0) { scrollOffset = Math.clamp(idx, 0, Math.max(0, c.playlist().size() - MAX_ROWS)); rebuildWidgets(); }
+        }, "Scroll to the current track", left + 298, top + 78, 22).active = c.currentIndex() >= 0;
 
         partyRow(c, left, top + 104);
 
@@ -104,10 +111,10 @@ public final class PlaylistScreen extends Screen {
                 continue;
             }
             boolean current = i == c.currentIndex();
-            addRenderableWidget(new StringWidget(left + 24, y + 6, 252, 12, Component.literal((current ? "\u266A " : "") + trackLabel(order.get(i))), this.font));
-            if (current) addRenderableWidget(Button.builder(Component.literal(c.paused() ? "\u25B6" : "\u23F8"), b -> c.togglePause()).bounds(left, y, 20, 20).build()).active = canEdit;
-            else addRenderableWidget(Button.builder(Component.literal("\u25B6"), b -> c.playIndex(row)).bounds(left, y, 20, 20).build()).active = canEdit;
-            addRenderableWidget(Button.builder(Component.literal("\u2715"), b -> c.removeAt(row)).bounds(left + 300, y, 20, 20).build()).active = canEdit;
+            addRenderableWidget(new StringWidget(left + 24, y + 6, 252, 12, trackComponent(order.get(i), current, c), this.font));
+            if (current) btn(c.paused() ? "\u25B6" : "\u23F8", c::togglePause, c.paused() ? "Play" : "Pause", left, y, 20).active = canEdit;
+            else btn("\u25B6", () -> c.playIndex(row), "Play this track", left, y, 20).active = canEdit;
+            btn("\u2715", () -> c.removeAt(row), "Remove from the playlist", left + 300, y, 20).active = canEdit;
         }
         if (tracks.size() > MAX_ROWS)
             addRenderableWidget(new StringWidget(left, listTop + MAX_ROWS * 22 + 2, 320, 12, Component.literal("\u2195 " + (scrollOffset + 1) + "\u2013" + end + " / " + tracks.size()), this.font));
@@ -118,14 +125,18 @@ public final class PlaylistScreen extends Screen {
         if (super.mouseClicked(e, d)) return true;
         if (e.button() == 0 && canEdit) {
             int idx = rowAtForStart(e.y());
-            if (idx >= 0) { dragFrom = idx; dragTo = idx; return true; }
+            if (idx >= 0) { dragFrom = idx; dragTo = -1; return true; }
         }
         return false;
     }
 
     @Override
     public boolean mouseDragged(MouseButtonEvent e, double dx, double dy) {
-        if (dragFrom >= 0) { dragTo = rowAtForDrop(e.y()); rebuildWidgets(); return true; }
+        if (dragFrom >= 0) {
+            int to = rowAtForDrop(e.y());
+            if (to != dragTo) { dragTo = to; rebuildWidgets(); }
+            return true;
+        }
         return super.mouseDragged(e, dx, dy);
     }
 
@@ -165,22 +176,26 @@ public final class PlaylistScreen extends Screen {
     }
 
     private void partyRow(PlayerController c, int left, int y) {
-        boolean relayOn = RelayClient.INSTANCE.connected();
         if (c.inParty()) {
-            addRenderableWidget(Button.builder(Component.literal("Party\u2026"), b -> this.minecraft.setScreen(new PartyScreen())).bounds(left, y, 240, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Leave"), b -> c.leaveParty()).bounds(left + 244, y, 76, 20).build());
+            btn("Party\u2026", () -> this.minecraft.setScreenAndShow(new PartyScreen()), "Manage members and invites", left, y, 240);
+            btn("Leave", c::leaveParty, "Leave the party", left + 244, y, 76);
         } else if (c.pendingInviteId() != null) {
-            addRenderableWidget(Button.builder(Component.literal("Create"), b -> c.createParty()).bounds(left, y, 110, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Join " + c.pendingInviteId()), b -> c.acceptInvite()).bounds(left + 114, y, 120, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Relay"), b -> this.minecraft.setScreen(new RelayScreen())).bounds(left + 238, y, 82, 20).build());
-        } else if (relayOn) {
-            addRenderableWidget(Button.builder(Component.literal("Create party"), b -> c.createParty()).bounds(left, y, 152, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Browse\u2026"), b -> this.minecraft.setScreen(new BrowseScreen())).bounds(left + 156, y, 80, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Relay"), b -> this.minecraft.setScreen(new RelayScreen())).bounds(left + 240, y, 80, 20).build());
+            btn("Create", c::createParty, "Create a new listening party", left, y, 110);
+            btn("Join " + c.pendingInviteId(), c::acceptInvite, "Accept the invite and join", left + 114, y, 120);
+            btn("Relay", () -> this.minecraft.setScreenAndShow(new RelayScreen()), "Relay connection settings", left + 238, y, 82);
+        } else if (ClientSync.backendAvailable()) {
+            btn("Create party", c::createParty, "Create a new listening party", left, y, 152);
+            btn("Browse\u2026", () -> this.minecraft.setScreenAndShow(new BrowseScreen()), "Browse public parties", left + 156, y, 80);
+            btn("Relay", () -> this.minecraft.setScreenAndShow(new RelayScreen()), "Relay connection settings", left + 240, y, 80);
         } else {
-            addRenderableWidget(Button.builder(Component.literal("Create party"), b -> c.createParty()).bounds(left, y, 235, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Relay"), b -> this.minecraft.setScreen(new RelayScreen())).bounds(left + 239, y, 81, 20).build());
+            btn("Create party", c::createParty, "Create a new listening party", left, y, 235);
+            btn("Relay", () -> this.minecraft.setScreenAndShow(new RelayScreen()), "Relay connection settings", left + 239, y, 81);
         }
+    }
+
+    private Button btn(String label, Runnable onClick, String tip, int x, int y, int w) {
+        return addRenderableWidget(Button.builder(Component.literal(label), b -> onClick.run())
+            .tooltip(Tooltip.create(Component.literal(tip))).bounds(x, y, w, 20).build());
     }
 
     @Override
@@ -201,7 +216,7 @@ public final class PlaylistScreen extends Screen {
         PlayerController c = PlayerController.INSTANCE;
         return c.inParty() + "|" + c.partyId() + "|" + c.paused() + "|" + c.currentIndex() + "|" + c.myLevel()
             + "|" + c.pendingInviteId() + "|" + RelayClient.INSTANCE.connected() + "|" + c.autoRemovePlayed()
-            + "|" + c.playlist().version() + "|" + c.publicListVersion();
+            + "|" + c.repeatOne() + "|" + c.partySbFlags() + "|" + c.playlist().version() + "|" + c.publicListVersion();
     }
 
     private final class Timeline extends AbstractSliderButton {
@@ -248,9 +263,10 @@ public final class PlaylistScreen extends Screen {
     }
 
     private String trim(String s, int n) { return s.length() <= n ? s : s.substring(0, n - 1) + "\u2026"; }
-    private String trackLabel(Track t) {
-        if (t.requester().isEmpty()) return trim(t.title(), 26);
-        return trim(t.title(), 16) + " \u2014 by " + trim(t.requester(), 8);
+    private Component trackComponent(Track t, boolean current, PlayerController c) {
+        String pre = current ? "\u266A " : "";
+        if (t.requester().isEmpty()) return Component.literal(pre + trim(t.title(), 26));
+        return Component.literal(pre + trim(t.title(), 16) + " \u2014 by " + trim(t.requester(), 8));
     }
 
     @Override
