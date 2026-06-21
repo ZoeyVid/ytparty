@@ -31,7 +31,12 @@ public final class PlaylistScreen extends Screen {
     private int visRows;
     private boolean canEdit;
 
-    public PlaylistScreen() { super(Component.literal("YT Party")); }
+    private final Screen parent;
+    public PlaylistScreen() { this(null); }
+    public PlaylistScreen(Screen parent) { super(Component.literal("YT Party")); this.parent = parent; }
+
+    @Override
+    public void onClose() { this.minecraft.setScreen(parent); }
 
     static String levelName(byte l) { return l >= 2 ? "Manage" : l == 1 ? "Invite" : "Listen"; }
 

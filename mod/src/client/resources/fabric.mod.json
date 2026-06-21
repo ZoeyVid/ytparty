@@ -9,7 +9,8 @@
     "environment": "*",
     "entrypoints": {
         "main": ["de.zoeyvid.ytparty.YtPartyMain"],
-        "client": ["de.zoeyvid.ytparty.YtPartyClient"]
+        "client": ["de.zoeyvid.ytparty.YtPartyClient"],
+        "modmenu": ["de.zoeyvid.ytparty.YtPartyModMenu"]
     },
     "depends": {
         "fabricloader": ">=0.18.4",

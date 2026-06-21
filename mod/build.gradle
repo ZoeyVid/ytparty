@@ -13,6 +13,7 @@ repositories {
     mavenCentral()
     maven { url = 'https://maven.lavalink.dev/releases' }
     maven { url = 'https://jitpack.io' }
+    maven { url = 'https://maven.terraformersmc.com/releases' }
 }
 
 loom {
@@ -36,6 +37,7 @@ dependencies {
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     bundle "dev.arbjerg:lavaplayer:${project.lavaplayer_version}"
     bundle "dev.lavalink.youtube:common:${project.youtube_source_version}"
+    compileOnly("com.terraformersmc:modmenu:${project.modmenu_version}") { transitive = false }
 }
 
 shadowJar {

@@ -33,6 +33,7 @@ public final class MusicPlayer {
 
     public MusicPlayer() {
         manager.getConfiguration().setOutputFormat(FORMAT);
+        manager.setFrameBufferDuration(1000);
         manager.registerSourceManager(new YoutubeAudioSourceManager());
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
@@ -42,6 +43,7 @@ public final class MusicPlayer {
         });
         Thread pump = new Thread(this::pumpLoop, "ytparty-audio");
         pump.setDaemon(true);
+        pump.setPriority(Thread.MAX_PRIORITY);
         pump.start();
     }
 
@@ -98,7 +100,7 @@ public final class MusicPlayer {
 
     public void seekBy(long deltaMs) {
         AudioTrack t = player.getPlayingTrack();
-        if (t != null && t.isSeekable()) setPosition(t.getPosition() + deltaMs);
+        if (t != null && t.isSeekable()) setPosition(position() + deltaMs);
     }
 
     public void setPosition(long ms) {
@@ -106,7 +108,7 @@ public final class MusicPlayer {
         if (t != null && t.isSeekable()) { t.setPosition(Math.max(0, Math.min(t.getDuration() - 1, ms))); out.requestFlush(); }
     }
 
-    public long position() { AudioTrack t = player.getPlayingTrack(); return t != null ? t.getPosition() : 0; }
+    public long position() { AudioTrack t = player.getPlayingTrack(); return t != null ? Math.max(0, t.getPosition() - out.bufferedAhead()) : 0; }
     public long duration() { AudioTrack t = player.getPlayingTrack(); return t != null ? t.getDuration() : 0; }
 
     public void setPaused(boolean paused) { player.setPaused(paused); out.requestPause(paused); }
