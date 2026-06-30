@@ -17,6 +17,7 @@ jobs:
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: '1.26.4'
+          cache: false
       - name: build static binary
         working-directory: relay
         env:
@@ -29,6 +30,7 @@ jobs:
           path: relay/ytparty-relay-linux-${{ matrix.arch }}
           archive: false
           if-no-files-found: error
+          retention-days: 7
 
   mod:
     name: fabric mod (full + server)
@@ -40,6 +42,8 @@ jobs:
           distribution: corretto
           java-version: '25'
       - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-disabled: true
       - name: build jars
         working-directory: mod
         run: ./gradlew shadowJar serverJar --no-daemon --stacktrace
@@ -48,11 +52,13 @@ jobs:
           path: mod/build/libs/*-bundle.jar
           archive: false
           if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: mod/build/libs/*-server.jar
           archive: false
           if-no-files-found: error
+          retention-days: 7
 
   plugin:
     name: paper plugin
@@ -64,6 +70,8 @@ jobs:
           distribution: corretto
           java-version: '25'
       - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-disabled: true
       - name: build jar
         working-directory: plugin
         run: ./gradlew build --no-daemon --stacktrace
@@ -72,3 +80,4 @@ jobs:
           path: plugin/build/libs/*.jar
           archive: false
           if-no-files-found: error
+          retention-days: 7
