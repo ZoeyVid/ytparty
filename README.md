@@ -1,6 +1,6 @@
 # YT Party
 
-YouTube audio in Minecraft 26.1 with synchronized listening parties. A client-side Fabric mod
+YouTube audio in Minecraft 26.2 with synchronized listening parties. A client-side Fabric mod
 fetches, decodes and plays YouTube audio itself (playlist, play/pause, volume, seek) and keeps
 the playlist order, current track and pause state in sync per "party". **Fully standalone:**
 without a backend it works purely locally. Everything is controlled **through the UI** (key **J**).
@@ -26,7 +26,7 @@ One backend is enough (or none → local only).
 
 ## For players
 
-1. Install **Fabric** for Minecraft 26.1, then drop **Fabric API** and the
+1. Install **Fabric** for Minecraft 26.2, then drop **Fabric API** and the
    **`ytparty-…-bundle.jar`** into your `mods/` folder.
 2. In game, press **J** — the playlist menu opens.
 

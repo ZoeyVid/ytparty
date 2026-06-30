@@ -23,6 +23,19 @@ public final class Party {
     public boolean repeatOne = false;
     public int nextTrackId = 1;
     public int generation = 0;
+    public long trackStart, pausedAccum, pausedSince;
+
+    public void anchor(long pos) {
+        long now = System.currentTimeMillis();
+        trackStart = now - pos;
+        pausedAccum = 0;
+        pausedSince = paused ? now : 0;
+    }
+
+    public long elapsed() {
+        long base = pausedSince != 0 ? pausedSince : System.currentTimeMillis();
+        return Math.max(0, base - trackStart - pausedAccum);
+    }
 
     public Party(String id, UUID host, boolean isPublic, PermissionLevel publicJoinLevel) {
         this.id = id;

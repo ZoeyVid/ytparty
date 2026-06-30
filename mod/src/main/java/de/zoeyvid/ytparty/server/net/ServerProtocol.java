@@ -1,5 +1,7 @@
 package de.zoeyvid.ytparty.server.net;
 
+import de.zoeyvid.ytparty.common.Opcodes;
+import static de.zoeyvid.ytparty.common.Opcodes.*;
 import de.zoeyvid.ytparty.server.party.Party;
 import de.zoeyvid.ytparty.server.party.PermissionLevel;
 
@@ -16,31 +18,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 public final class ServerProtocol {
-    public static final byte C2S_CREATE = 0;
-    public static final byte C2S_JOIN = 1;
-    public static final byte C2S_LEAVE = 2;
-    public static final byte C2S_INVITE = 3;
-    public static final byte C2S_SET_LEVEL = 4;
-    public static final byte C2S_ADD = 5;
-    public static final byte C2S_REMOVE = 6;
-    public static final byte C2S_MOVE = 7;
-    public static final byte C2S_SET_TRACK = 8;
-    public static final byte C2S_SET_PAUSED = 9;
-    public static final byte C2S_SET_POSITION = 10;
-    public static final byte C2S_SET_PUBLIC = 11;
-    public static final byte C2S_SET_AUTOREMOVE = 12;
-    public static final byte C2S_LIST_PUBLIC = 13;
-    public static final byte C2S_SET_SPONSORBLOCK = 15;
-    public static final byte C2S_SET_REPEAT = 16;
-    public static final byte C2S_TRACK_ENDED = 17;
-    public static final byte C2S_SET_PLAYLIST = 18;
 
-    public static final byte S2C_STATE = 0;
-    public static final byte S2C_INVITED = 1;
-    public static final byte S2C_MESSAGE = 2;
-    public static final byte S2C_LEFT = 3;
-    public static final byte S2C_SEEK = 4;
-    public static final byte S2C_PUBLIC_LIST = 5;
 
     private ServerProtocol() {}
 
@@ -64,6 +42,7 @@ public final class ServerProtocol {
             d.writeByte(party.sbFlags);
             d.writeBoolean(party.repeatOne);
             d.writeInt(party.generation);
+            d.writeLong(party.elapsed());
             d.writeInt(party.tracks.size());
             for (Party.TrackRef t : party.tracks) { d.writeInt(t.id()); d.writeUTF(t.uri()); d.writeUTF(t.title()); d.writeUTF(t.requester()); }
             d.writeInt(members.size());
@@ -81,7 +60,7 @@ public final class ServerProtocol {
     }
 
     public static byte[] left() { return write(d -> d.writeByte(S2C_LEFT)); }
-    public static byte[] seek(long ms) { return write(d -> { d.writeByte(S2C_SEEK); d.writeLong(ms); }); }
+    public static byte[] seek(long ms, int generation) { return write(d -> { d.writeByte(S2C_SEEK); d.writeLong(ms); d.writeInt(generation); }); }
     public static byte[] invited(String from, String partyId, PermissionLevel level) { return write(d -> { d.writeByte(S2C_INVITED); d.writeUTF(from); d.writeUTF(partyId); d.writeByte(level.id()); }); }
     public static byte[] message(String text) { return write(d -> { d.writeByte(S2C_MESSAGE); d.writeUTF(text); }); }
     public static byte[] publicList(List<Party> parties) { return write(d -> { d.writeByte(S2C_PUBLIC_LIST); d.writeInt(parties.size()); for (Party p : parties) { d.writeUTF(p.id); d.writeInt(p.members.size()); d.writeUTF(p.currentIndex >= 0 && p.currentIndex < p.tracks.size() ? p.tracks.get(p.currentIndex).title() : ""); } }); }

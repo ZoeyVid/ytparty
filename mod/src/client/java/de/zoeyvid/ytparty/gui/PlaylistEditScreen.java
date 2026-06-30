@@ -18,7 +18,7 @@ public final class PlaylistEditScreen extends Screen {
     @Override
     protected void init() {
         PlayerController c = PlayerController.INSTANCE;
-        boolean editable = !c.inParty() || c.canManage();
+        boolean editable = !c.hasParty() || c.canManage();
         int left = this.width / 2 - 160;
         if (text == null) { StringBuilder sb = new StringBuilder(); for (Track t : c.playlist().view()) sb.append(t.uri()).append('\n'); text = sb.toString(); }
 

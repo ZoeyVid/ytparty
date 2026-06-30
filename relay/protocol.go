@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"time"
 )
 
 const (
@@ -22,7 +23,7 @@ const (
 	cSetPublic
 	cSetAutoRemove
 	cListPublic
-	cReportPosition
+	cReanchor
 	cSetSponsorBlock
 	cSetRepeat
 	cTrackEnded
@@ -39,6 +40,28 @@ const (
 	sPlayerList
 )
 
+func (p *party) anchor(pos int64) {
+	now := time.Now().UnixMilli()
+	p.trackStart = now - pos
+	p.pausedAccum = 0
+	p.pausedSince = 0
+	if p.paused {
+		p.pausedSince = now
+	}
+}
+
+func (p *party) elapsed() int64 {
+	base := time.Now().UnixMilli()
+	if p.pausedSince != 0 {
+		base = p.pausedSince
+	}
+	e := base - p.trackStart - p.pausedAccum
+	if e < 0 {
+		e = 0
+	}
+	return e
+}
+
 func (r *relay) stateTemplate(p *party) ([]byte, int) {
 	w := &wtr{}
 	w.u8(sState)
@@ -53,6 +76,7 @@ func (r *relay) stateTemplate(p *party) ([]byte, int) {
 	w.u8(int(p.sbFlags))
 	w.boolean(p.repeatOne)
 	w.i32(p.generation)
+	w.i64(p.elapsed())
 	w.i32(len(p.tracks))
 	for _, t := range p.tracks {
 		w.i32(t.id)
@@ -295,6 +319,7 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		return
 	}
 	oldCur := p.curTrackID()
+	genBefore := p.generation
 	switch int(op) {
 	case cAdd:
 		uri := rd.blob()
@@ -357,15 +382,16 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		if rd.bad || gen != p.generation || p.curIndex < 0 {
 			return
 		}
-		if p.autoRemove && p.curIndex < len(p.tracks) {
+		if p.repeatOne || (!p.autoRemove && len(p.tracks) == 1) {
+			p.generation++
+		} else if p.autoRemove && p.curIndex < len(p.tracks) {
 			cur := p.curIndex
 			p.tracks = slices.Delete(p.tracks, cur, cur+1)
 			p.curIndex = min(cur, len(p.tracks)-1)
+		} else if len(p.tracks) > 0 {
+			p.curIndex = (p.curIndex + 1) % len(p.tracks)
 		} else {
-			p.curIndex = min(p.curIndex+1, len(p.tracks)-1)
-			if p.curIndex < 0 {
-				p.curIndex = -1
-			}
+			p.curIndex = -1
 		}
 	case cSetPlaylist:
 		n := rd.i32()
@@ -397,6 +423,13 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		if rd.bad {
 			return
 		}
+		if v && !p.paused {
+			p.pausedSince = time.Now().UnixMilli()
+		}
+		if !v && p.paused {
+			p.pausedAccum += time.Now().UnixMilli() - p.pausedSince
+			p.pausedSince = 0
+		}
 		p.paused = v
 	case cSetAutoRemove:
 		v := rd.boolean()
@@ -421,18 +454,32 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		if rd.bad {
 			return
 		}
+		p.generation++
+		p.anchor(ms)
 		w := &wtr{}
 		w.u8(sSeek)
 		w.i64(ms)
+		w.i32(p.generation)
 		for m := range p.members {
 			r.send(m, w.b)
 		}
+		return
+	case cReanchor:
+		gen := rd.i32()
+		pos := rd.i64()
+		if rd.bad || gen != p.generation || pos <= p.elapsed() {
+			return
+		}
+		p.anchor(pos)
 		return
 	default:
 		return
 	}
 	if p.curTrackID() != oldCur {
 		p.generation++
+	}
+	if p.generation != genBefore {
+		p.anchor(0)
 	}
 	r.broadcast(p)
 }

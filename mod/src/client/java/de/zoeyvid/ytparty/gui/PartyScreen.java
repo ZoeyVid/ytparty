@@ -20,7 +20,7 @@ public final class PartyScreen extends Screen {
     @Override
     protected void init() {
         PlayerController c = PlayerController.INSTANCE;
-        if (!c.inParty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
+        if (!c.hasParty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
         String self = this.minecraft.getUser().getName();
         lastSig = signature();
 
@@ -68,7 +68,7 @@ public final class PartyScreen extends Screen {
     @Override
     public void tick() {
         PlayerController c = PlayerController.INSTANCE;
-        if (!c.inParty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
+        if (!c.hasParty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
         if (!signature().equals(lastSig)) rebuildWidgets();
     }
 

@@ -33,6 +33,7 @@ public final class ServerProtocol {
     public static final byte C2S_SET_PUBLIC = 11;
     public static final byte C2S_SET_AUTOREMOVE = 12;
     public static final byte C2S_LIST_PUBLIC = 13;
+    public static final byte C2S_REANCHOR = 14;
     public static final byte C2S_SET_SPONSORBLOCK = 15;
     public static final byte C2S_SET_REPEAT = 16;
     public static final byte C2S_TRACK_ENDED = 17;
@@ -67,6 +68,7 @@ public final class ServerProtocol {
             d.writeByte(party.sbFlags);
             d.writeBoolean(party.repeatOne);
             d.writeInt(party.generation);
+            d.writeLong(party.elapsed());
             d.writeInt(party.tracks.size());
             for (Party.TrackRef t : party.tracks) { d.writeInt(t.id()); d.writeUTF(t.uri()); d.writeUTF(t.title()); d.writeUTF(t.requester()); }
             d.writeInt(members.size());
@@ -89,7 +91,7 @@ public final class ServerProtocol {
     }
 
     public static byte[] left() { return write(d -> d.writeByte(S2C_LEFT)); }
-    public static byte[] seek(long ms) { return write(d -> { d.writeByte(S2C_SEEK); d.writeLong(ms); }); }
+    public static byte[] seek(long ms, int generation) { return write(d -> { d.writeByte(S2C_SEEK); d.writeLong(ms); d.writeInt(generation); }); }
     public static byte[] invited(String from, String partyId, PermissionLevel level) { return write(d -> { d.writeByte(S2C_INVITED); d.writeUTF(from); d.writeUTF(partyId); d.writeByte(level.id()); }); }
     public static byte[] message(String text) { return write(d -> { d.writeByte(S2C_MESSAGE); d.writeUTF(text); }); }
     public static byte[] publicList(List<Party> parties) { return write(d -> { d.writeByte(S2C_PUBLIC_LIST); d.writeInt(parties.size()); for (Party p : parties) { d.writeUTF(p.id); d.writeInt(p.members.size()); d.writeUTF(p.currentIndex >= 0 && p.currentIndex < p.tracks.size() ? p.tracks.get(p.currentIndex).title() : ""); } }); }

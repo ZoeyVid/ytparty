@@ -13,11 +13,11 @@ public final class SponsorBlockScreen extends Screen {
 
     public SponsorBlockScreen() { super(Component.literal("SponsorBlock")); }
 
-    private byte flags() { return PlayerController.INSTANCE.inParty() ? PlayerController.INSTANCE.partySbFlags() : ClientConfig.sbFlags(); }
+    private byte flags() { return PlayerController.INSTANCE.hasParty() ? PlayerController.INSTANCE.partySbFlags() : ClientConfig.sbFlags(); }
 
     private boolean editable() {
         PlayerController c = PlayerController.INSTANCE;
-        return !c.inParty() || c.canManage();
+        return !c.hasParty() || c.canManage();
     }
 
     @Override
@@ -28,7 +28,7 @@ public final class SponsorBlockScreen extends Screen {
         int left = this.width / 2 - 160;
         int top = 30;
         addRenderableWidget(new StringWidget(left, 12, 320, 12,
-            Component.literal(c.inParty() ? "SponsorBlock \u2014 party (managers control)" : "SponsorBlock \u2014 your settings"), this.font));
+            Component.literal(c.hasParty() ? "SponsorBlock \u2014 party (managers control)" : "SponsorBlock \u2014 your settings"), this.font));
 
         toggle(left, top, "SponsorBlock", flags, SponsorBlock.FLAG_ENABLED);
         boolean on = (flags & SponsorBlock.FLAG_ENABLED) != 0;
@@ -36,7 +36,7 @@ public final class SponsorBlockScreen extends Screen {
         toggle(left, top + 52, "Unpaid / self-promotion", flags, SponsorBlock.FLAG_SELFPROMO).active = editable() && on;
         toggle(left, top + 78, "Music: non-music section", flags, SponsorBlock.FLAG_MUSIC).active = editable() && on;
 
-        if (c.inParty() && !c.canManage())
+        if (c.hasParty() && !c.canManage())
             addRenderableWidget(new StringWidget(left, top + 106, 320, 12, Component.literal("Only a manager can change these."), this.font));
 
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))

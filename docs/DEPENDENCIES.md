@@ -10,7 +10,7 @@
 
 | Dependency | Version | Kind |
 |---|---|---|
-| `io.papermc.paper:paper-api` | `26.1.2.build.+` | **provided** (supplied by the server, not bundled) |
+| `io.papermc.paper:paper-api` | `26.2.build.+` | **provided** (supplied by the server, not bundled) |
 
 No bundled libraries. The YAML config uses Bukkit's built-in parser (no extra library).
 
@@ -20,9 +20,9 @@ No bundled libraries. The YAML config uses Bukkit's built-in parser (no extra li
 
 | Dependency | Version |
 |---|---|
-| `com.mojang:minecraft` | `26.1.2` |
-| `net.fabricmc:fabric-loader` | `0.18.4` |
-| `net.fabricmc.fabric-api:fabric-api` | `0.152.1+26.1.2` (goes into `mods/`) |
+| `com.mojang:minecraft` | `26.2` |
+| `net.fabricmc:fabric-loader` | `0.19.3` |
+| `net.fabricmc.fabric-api:fabric-api` | `0.153.0+26.2` (goes into `mods/`) |
 | LWJGL / OpenAL | supplied by Minecraft |
 
 ### Bundled directly (only in the **full bundle jar**, not the server jar)
@@ -62,6 +62,6 @@ server classes (dedicated servers never play audio).
 |---|---|---|
 | JDK (Temurin) | 25 | mod + plugin |
 | Gradle (wrapper) | 9.6.0 | mod + plugin |
-| Fabric Loom | 1.17.11 | mod |
+| Fabric Loom | 1.17.12 | mod |
 | Gradle Shadow | 9.4.2 | mod (full bundle) |
 | Go | 1.26 | relay |

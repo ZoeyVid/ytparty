@@ -1,5 +1,7 @@
 package de.zoeyvid.ytparty.server.net;
 
+import de.zoeyvid.ytparty.common.Control;
+import de.zoeyvid.ytparty.common.Opcodes;
 import de.zoeyvid.ytparty.net.SyncPayload;
 import de.zoeyvid.ytparty.server.party.Party;
 import de.zoeyvid.ytparty.server.party.PartyManager;
@@ -112,13 +114,13 @@ public final class ServerSync {
         try (DataInputStream d = new DataInputStream(new ByteArrayInputStream(message))) {
             byte op = d.readByte();
             switch (op) {
-                case ServerProtocol.C2S_CREATE -> create(player);
-                case ServerProtocol.C2S_JOIN -> join(player, d.readUTF());
-                case ServerProtocol.C2S_LEAVE -> leave(player, d.available() > 0 ? d.readUTF() : "");
-                case ServerProtocol.C2S_INVITE -> invite(player, d.readUTF(), PermissionLevel.fromId(d.readByte()));
-                case ServerProtocol.C2S_SET_LEVEL -> setLevel(player, d.readUTF(), PermissionLevel.fromId(d.readByte()));
-                case ServerProtocol.C2S_SET_PUBLIC -> setPublic(player, d.readBoolean(), PermissionLevel.fromId(d.readByte()));
-                case ServerProtocol.C2S_LIST_PUBLIC -> send(player, ServerProtocol.publicList(manager.publicParties()));
+                case Opcodes.C2S_CREATE -> create(player);
+                case Opcodes.C2S_JOIN -> join(player, d.readUTF());
+                case Opcodes.C2S_LEAVE -> leave(player, d.available() > 0 ? d.readUTF() : "");
+                case Opcodes.C2S_INVITE -> invite(player, d.readUTF(), PermissionLevel.fromId(d.readByte()));
+                case Opcodes.C2S_SET_LEVEL -> setLevel(player, d.readUTF(), PermissionLevel.fromId(d.readByte()));
+                case Opcodes.C2S_SET_PUBLIC -> setPublic(player, d.readBoolean(), PermissionLevel.fromId(d.readByte()));
+                case Opcodes.C2S_LIST_PUBLIC -> send(player, ServerProtocol.publicList(manager.publicParties()));
                 default -> handleControlOp(player, op, d);
             }
         } catch (IOException ignored) {}
@@ -154,79 +156,12 @@ public final class ServerSync {
         Party p = manager.of(player.getUUID());
         if (p == null) return;
         if (!p.canManage(player.getUUID())) { send(player, ServerProtocol.state(p, player.getUUID(), this::nameOf)); return; }
-        int oldCur = p.curTrackId();
-        switch (op) {
-            case ServerProtocol.C2S_ADD -> {
-                String uri = d.readUTF();
-                String title = cap(d.readUTF(), 200);
-                if (uri.isEmpty() || uri.length() > 1000 || p.tracks.size() >= 500) return;
-                p.tracks.add(new Party.TrackRef(p.nextTrackId++, uri, title, player.getName().getString()));
-                if (p.currentIndex < 0) p.currentIndex = 0;
-            }
-            case ServerProtocol.C2S_REMOVE -> {
-                int i = p.indexOf(d.readInt());
-                if (i >= 0) {
-                    p.tracks.remove(i);
-                    if (i < p.currentIndex) p.currentIndex--;
-                    if (p.currentIndex >= p.tracks.size()) p.currentIndex = p.tracks.size() - 1;
-                }
-            }
-            case ServerProtocol.C2S_MOVE -> {
-                int from = p.indexOf(d.readInt()), to = d.readInt();
-                if (from >= 0) {
-                    to = Math.max(0, Math.min(to, p.tracks.size() - 1));
-                    p.move(from, to);
-                    if (from == p.currentIndex) p.currentIndex = to;
-                    else if (from < p.currentIndex && to >= p.currentIndex) p.currentIndex--;
-                    else if (from > p.currentIndex && to <= p.currentIndex) p.currentIndex++;
-                }
-            }
-            case ServerProtocol.C2S_SET_TRACK -> {
-                int i = p.indexOf(d.readInt());
-                if (i < 0) return;
-                p.currentIndex = i;
-                p.paused = false;
-            }
-            case ServerProtocol.C2S_TRACK_ENDED -> {
-                int gen = d.readInt();
-                if (gen != p.generation || p.currentIndex < 0) return;
-                if (p.autoRemovePlayed && p.currentIndex < p.tracks.size()) {
-                    int cur = p.currentIndex;
-                    p.tracks.remove(cur);
-                    p.currentIndex = Math.min(cur, p.tracks.size() - 1);
-                } else {
-                    p.currentIndex = Math.min(p.currentIndex + 1, p.tracks.size() - 1);
-                }
-            }
-            case ServerProtocol.C2S_SET_PLAYLIST -> {
-                int n = d.readInt();
-                if (n < 0 || n > 500) return;
-                List<Party.TrackRef> nt = new ArrayList<>();
-                for (int i = 0; i < n; i++) {
-                    String uri = d.readUTF();
-                    String title = cap(d.readUTF(), 200);
-                    if (uri.isEmpty() || uri.length() > 1000) continue;
-                    nt.add(new Party.TrackRef(p.nextTrackId++, uri, title, player.getName().getString()));
-                }
-                p.tracks.clear();
-                p.tracks.addAll(nt);
-                p.currentIndex = p.tracks.isEmpty() ? -1 : 0;
-                p.paused = false;
-            }
-            case ServerProtocol.C2S_SET_PAUSED -> p.paused = d.readBoolean();
-            case ServerProtocol.C2S_SET_AUTOREMOVE -> p.autoRemovePlayed = d.readBoolean();
-            case ServerProtocol.C2S_SET_SPONSORBLOCK -> p.sbFlags = (byte) (d.readByte() & 0x0F);
-            case ServerProtocol.C2S_SET_REPEAT -> p.repeatOne = d.readBoolean();
-            case ServerProtocol.C2S_SET_POSITION -> {
-                long ms = d.readLong();
-                for (UUID m : p.members.keySet()) { ServerPlayer pl = online(m); if (pl != null) send(pl, ServerProtocol.seek(ms)); }
-                return;
-            }
-            default -> { return; }
+        Control.Result r = Control.apply(p, op, d, player.getName().getString());
+        switch (r.emit()) {
+            case STATE -> broadcast(p);
+            case SEEK -> { for (UUID m : p.members.keySet()) { ServerPlayer pl = online(m); if (pl != null) send(pl, ServerProtocol.seek(r.seekMs(), p.generation)); } }
+            case NONE -> {}
         }
-        if (p.curTrackId() != oldCur) p.generation++;
-        broadcast(p);
     }
 
-    private static String cap(String s, int max) { return s.length() <= max ? s : s.substring(0, max); }
 }

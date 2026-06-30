@@ -26,8 +26,8 @@ jobs:
         run: go build -trimpath -ldflags "-s -w" -o ytparty-relay-linux-${{ matrix.arch }} .
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ytparty-relay-linux-${{ matrix.arch }}
           path: relay/ytparty-relay-linux-${{ matrix.arch }}
+          archive: false
           if-no-files-found: error
 
   mod:
@@ -45,8 +45,13 @@ jobs:
         run: ./gradlew shadowJar serverJar --no-daemon --stacktrace
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ytparty-mod
-          path: mod/build/libs/*.jar
+          path: mod/build/libs/*-bundle.jar
+          archive: false
+          if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: mod/build/libs/*-server.jar
+          archive: false
           if-no-files-found: error
 
   plugin:
@@ -64,6 +69,6 @@ jobs:
         run: ./gradlew build --no-daemon --stacktrace
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ytparty-plugin
           path: plugin/build/libs/*.jar
+          archive: false
           if-no-files-found: error

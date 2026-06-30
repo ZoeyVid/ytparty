@@ -30,6 +30,7 @@ public final class MusicPlayer {
     private Runnable onEnd = () -> {};
     private Runnable onError = () -> {};
     private AudioTrack lastTrack;
+    private volatile boolean decodeFinished;
 
     public MusicPlayer() {
         manager.getConfiguration().setOutputFormat(FORMAT);
@@ -37,7 +38,7 @@ public final class MusicPlayer {
         manager.registerSourceManager(new YoutubeAudioSourceManager());
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
-                if (reason == AudioTrackEndReason.FINISHED) onEnd.run();
+                if (reason == AudioTrackEndReason.FINISHED) decodeFinished = true;
                 else if (reason == AudioTrackEndReason.LOAD_FAILED) onError.run();
             }
         });
@@ -87,12 +88,13 @@ public final class MusicPlayer {
 
     private void start(AudioTrack track, Consumer<String> onTitle) {
         lastTrack = track;
+        decodeFinished = false;
         out.requestFlush();
         player.playTrack(track);
         if (onTitle != null) onTitle.accept(track.getInfo().title);
     }
 
-    public void repeatCurrent() { if (lastTrack != null) { out.requestFlush(); player.playTrack(lastTrack.makeClone()); } }
+    public void repeatCurrent() { if (lastTrack != null) { decodeFinished = false; out.requestFlush(); player.playTrack(lastTrack.makeClone()); } }
 
     private static AudioTrack pick(AudioPlaylist list) {
         return list.getSelectedTrack() != null ? list.getSelectedTrack() : list.getTracks().getFirst();
@@ -113,7 +115,7 @@ public final class MusicPlayer {
 
     public void setPaused(boolean paused) { player.setPaused(paused); out.requestPause(paused); }
     public boolean isPaused() { return player.isPaused(); }
-    public void stop() { player.stopTrack(); out.requestFlush(); }
+    public void stop() { decodeFinished = false; player.stopTrack(); out.requestFlush(); }
     public void setVolume(int v) { out.setGain(Math.clamp(v, 0, 200) / 100f); }
 
     public void close() { running = false; }
@@ -125,6 +127,7 @@ public final class MusicPlayer {
         while (running) {
             boolean has = player.provide(frame);
             out.pump(buf, has ? frame.getDataLength() : 0, has);
+            if (decodeFinished && out.bufferedAhead() == 0) { decodeFinished = false; onEnd.run(); }
             if (!has) sleep();
         }
         out.shutdown();

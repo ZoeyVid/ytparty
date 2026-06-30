@@ -44,7 +44,7 @@ public final class InviteScreen extends Screen {
     @Override
     protected void init() {
         PlayerController c = PlayerController.INSTANCE;
-        if (!c.inParty() || !c.canInvite()) { this.minecraft.setScreenAndShow(c.inParty() ? new PartyScreen() : new PlaylistScreen()); return; }
+        if (!c.hasParty() || !c.canInvite()) { this.minecraft.setScreenAndShow(c.hasParty() ? new PartyScreen() : new PlaylistScreen()); return; }
         if (RelayClient.INSTANCE.connected() && !requestedPlayers) { c.requestPlayerList(); requestedPlayers = true; }
         lastSig = signature();
         int left = this.width / 2 - 160;
@@ -79,7 +79,7 @@ public final class InviteScreen extends Screen {
     @Override
     public void tick() {
         PlayerController c = PlayerController.INSTANCE;
-        if (!c.inParty() || !c.canInvite()) { this.minecraft.setScreenAndShow(c.inParty() ? new PartyScreen() : new PlaylistScreen()); return; }
+        if (!c.hasParty() || !c.canInvite()) { this.minecraft.setScreenAndShow(c.hasParty() ? new PartyScreen() : new PlaylistScreen()); return; }
         if (filterField != null && !filterField.getValue().equals(savedFilter)) { savedFilter = filterField.getValue(); rebuildWidgets(); return; }
         if (!signature().equals(lastSig)) rebuildWidgets();
     }

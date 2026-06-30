@@ -4,10 +4,10 @@
 
 | Thing | Value |
 |-------|-------|
-| Minecraft | 26.1.2 (Java 25, `year.drop.hotfix` scheme) |
+| Minecraft | 26.2 (Java 25, `year.drop.hotfix` scheme) |
 | Mappings | official Mojang mappings (Yarn is gone for 26.1) |
-| Fabric | Loom 1.17.11, Gradle 9.6, Loader 0.18.4, API `0.152.1+26.1.2` |
-| Paper | `io.papermc.paper:paper-api:26.1.2.build.+` |
+| Fabric | Loom 1.17.12, Gradle 9.6, Loader 0.19.3, API `0.153.0+26.2` |
+| Paper | `io.papermc.paper:paper-api:26.2.build.+` |
 | LavaPlayer | `dev.arbjerg:lavaplayer:2.2.6` (Maven Central) |
 | YouTube source | `dev.lavalink.youtube:common:1.18.1` (`https://maven.lavalink.dev/releases`) |
 | Relay | Go 1.26 (stdlib only) |
@@ -46,6 +46,15 @@ Formats: Paper = YAML (`config.yml`, built into Bukkit, no extra lib), Fabric = 
 (`config/ytparty-server.properties`, JDK built-in; YAML would need an extra library such as snakeyaml),
 relay = environment variables. **No JSON anywhere.** Every option with its default and meaning is in
 [`CONFIGURATION.md`](CONFIGURATION.md).
+
+## MC 26.2 API changes (applied)
+
+| Before (26.1) | 26.2 |
+|--------|------|
+| `Minecraft#getToastManager()` | `Minecraft.gui.toastManager()` |
+| `Minecraft#setScreen(Screen)` | `Minecraft#setScreenAndShow(Screen)` (screen get/set moved into `Gui`) |
+
+26.2 is a small update; the HUD render-state pipeline (`HudElement`/`GuiGraphicsExtractor`) and the rest compiled unchanged.
 
 ## MC 26.1 API changes (already applied)
 
@@ -150,7 +159,7 @@ Not implemented — candidates for later:
   `dev.lavalink.youtube`. On breakage: rebuild with an updated `common` version. `403` / "This video
   requires login" mostly hits server IPs; on a residential IP the WEB client usually works. If it
   persists: OAuth/PoToken for the youtube-source.
-- **`plugin.yml api-version`** is `26.1`; adjust if your Paper build rejects it.
+- **`plugin.yml api-version`** is `26.2`; adjust if your Paper build rejects it.
 
 ## LavaPlayer alternatives (evaluated)
 

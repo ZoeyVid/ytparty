@@ -8,7 +8,7 @@ Guidance for an AI agent (Claude Code or similar) working in this repo. If your 
 
 ## What this is
 
-YouTube audio in **Minecraft 26.1** with synchronized listening "parties". A client-side **Fabric mod**
+YouTube audio in **Minecraft 26.2** with synchronized listening "parties". A client-side **Fabric mod**
 fetches/decodes/plays YouTube audio itself (LavaPlayer → OpenAL) and keeps playlist order, current
 track and pause state in sync per party. It is **fully standalone** (works solo with no backend) and
 driven entirely through the GUI (key **J**, plus a button on the title screen).
@@ -59,8 +59,8 @@ and pass `-Dorg.gradle.java.installations.paths=$JAVA_HOME`. Not needed on a nor
 ## Minecraft 26.1 / Fabric gotchas (hard-won — verify with `javap` before trusting memory)
 
 - **26.1 is fully unobfuscated** (official Mojang names). The mod's `build.gradle` must **not** set
-  `mappings loom.officialMojangMappings()`. Loom 1.17.11, Loader 0.18.4, Fabric API
-  `0.152.1+26.1.2`, Shadow 9.4.2. Paper: `io.papermc.paper:paper-api:26.1.2.build.+`.
+  `mappings loom.officialMojangMappings()`. Loom 1.17.12, Loader 0.19.3, Fabric API
+  `0.153.0+26.2`, Shadow 9.4.2. Paper: `io.papermc.paper:paper-api:26.2.build.+`.
 - **`GuiGraphics` does not exist in 26.1.** Screens use the extracted render-state pipeline
   (`extractRenderState(GuiGraphicsExtractor,…)`), so you cannot draw custom primitives the old way.
   **Stick to widgets** (`StringWidget`, `Button`, `EditBox`, `AbstractSliderButton` via

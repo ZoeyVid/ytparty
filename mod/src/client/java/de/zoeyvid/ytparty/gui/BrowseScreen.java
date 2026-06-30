@@ -51,7 +51,7 @@ public final class BrowseScreen extends Screen {
     @Override
     public void tick() {
         if (!ClientSync.backendAvailable()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
-        if (PlayerController.INSTANCE.inParty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
+        if (PlayerController.INSTANCE.hasParty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
         if (PlayerController.INSTANCE.publicListVersion() != lastVersion) rebuildWidgets();
     }
 

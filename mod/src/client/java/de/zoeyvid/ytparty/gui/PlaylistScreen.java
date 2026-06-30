@@ -36,7 +36,7 @@ public final class PlaylistScreen extends Screen {
     public PlaylistScreen(Screen parent) { super(Component.literal("YT Party")); this.parent = parent; }
 
     @Override
-    public void onClose() { this.minecraft.setScreen(parent); }
+    public void onClose() { this.minecraft.setScreenAndShow(parent); }
 
     static String levelName(byte l) { return l >= 2 ? "Manage" : l == 1 ? "Invite" : "Listen"; }
 
@@ -48,21 +48,21 @@ public final class PlaylistScreen extends Screen {
         lastSig = signature();
 
         addRenderableWidget(new StringWidget(left, 10, 320, 12,
-            Component.literal(c.inParty() ? "Party " + c.partyId() + " \u2014 " + levelName(c.myLevel())
+            Component.literal(c.hasParty() ? "Party " + c.partyId() + " \u2014 " + levelName(c.myLevel())
                 : (RelayClient.INSTANCE.connected() ? "Relay connected" : "Local")), this.font));
 
+        canEdit = !c.hasParty() || c.canManage();
         urlField = new EditBox(this.font, left, top, 200, 20, Component.literal("YouTube URL"));
         urlField.setMaxLength(2048);
         urlField.setHint(Component.literal("YouTube video URL"));
         urlField.setValue(savedUrl);
+        urlField.setEditable(canEdit);
         addRenderableWidget(urlField);
         btn("Add", () -> {
             String text = urlField.getValue().trim();
             if (!text.isEmpty()) { c.addUrl(text, null); urlField.setValue(""); savedUrl = ""; }
-        }, "Add the URL to the playlist", left + 204, top, 38);
+        }, "Add the URL to the playlist", left + 204, top, 38).active = canEdit;
         btn("Edit list\u2026", () -> this.minecraft.setScreenAndShow(new PlaylistEditScreen()), "Edit the whole playlist as a text list of URLs", left + 246, top, 74);
-
-        canEdit = !c.inParty() || c.canManage();
 
         btn("SponsorBlock\u2026", () -> this.minecraft.setScreenAndShow(new SponsorBlockScreen()), "SponsorBlock segment-skip settings", left, top + 26, 120);
         btn("HUD\u2026", () -> this.minecraft.setScreenAndShow(new HudScreen()), "Now-Playing HUD settings", left + 124, top + 26, 60);
@@ -77,6 +77,7 @@ public final class PlaylistScreen extends Screen {
         timeline = new Timeline(left, top + 52, 320, 20);
         timeline.setTooltip(Tooltip.create(Component.literal("Seek within the current track")));
         addRenderableWidget(timeline);
+        timeline.active = canEdit;
 
         btn("\u23EE", c::previous, "Previous track", left, top + 78, 22).active = canEdit;
         btn("\u21E4", () -> seek(0), "Restart current track", left + 24, top + 78, 22).active = canEdit;
@@ -181,7 +182,7 @@ public final class PlaylistScreen extends Screen {
     }
 
     private void partyRow(PlayerController c, int left, int y) {
-        if (c.inParty()) {
+        if (c.hasParty()) {
             btn("Party\u2026", () -> this.minecraft.setScreenAndShow(new PartyScreen()), "Manage members and invites", left, y, 240);
             btn("Leave", c::leaveParty, "Leave the party", left + 244, y, 76);
         } else if (!c.pendingInvites().isEmpty()) {
@@ -221,7 +222,7 @@ public final class PlaylistScreen extends Screen {
 
     private String signature() {
         PlayerController c = PlayerController.INSTANCE;
-        return c.inParty() + "|" + c.partyId() + "|" + c.paused() + "|" + c.currentIndex() + "|" + c.myLevel()
+        return c.hasParty() + "|" + c.partyId() + "|" + c.paused() + "|" + c.currentIndex() + "|" + c.myLevel()
             + "|" + invitesSig(c) + "|" + RelayClient.INSTANCE.connected() + "|" + c.autoRemovePlayed()
             + "|" + c.repeatOne() + "|" + c.partySbFlags() + "|" + c.playlist().version() + "|" + c.publicListVersion();
     }

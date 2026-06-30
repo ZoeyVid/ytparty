@@ -138,6 +138,7 @@ public final class ChannelBridge implements PluginMessageListener {
         if (p == null) return;
         if (!p.canManage(player.getUniqueId())) { send(player, ServerProtocol.state(p, player.getUniqueId())); return; }
         int oldCur = p.curTrackId();
+        int genBefore = p.generation;
         switch (op) {
             case ServerProtocol.C2S_ADD -> {
                 String uri = d.readUTF();
@@ -173,13 +174,13 @@ public final class ChannelBridge implements PluginMessageListener {
             case ServerProtocol.C2S_TRACK_ENDED -> {
                 int gen = d.readInt();
                 if (gen != p.generation || p.currentIndex < 0) return;
-                if (p.autoRemovePlayed && p.currentIndex < p.tracks.size()) {
+                if (p.repeatOne || (!p.autoRemovePlayed && p.tracks.size() == 1)) p.generation++;
+                else if (p.autoRemovePlayed && p.currentIndex < p.tracks.size()) {
                     int cur = p.currentIndex;
                     p.tracks.remove(cur);
                     p.currentIndex = Math.min(cur, p.tracks.size() - 1);
-                } else {
-                    p.currentIndex = Math.min(p.currentIndex + 1, p.tracks.size() - 1);
-                }
+                } else if (!p.tracks.isEmpty()) p.currentIndex = (p.currentIndex + 1) % p.tracks.size();
+                else p.currentIndex = -1;
             }
             case ServerProtocol.C2S_SET_PLAYLIST -> {
                 int n = d.readInt();
@@ -196,18 +197,27 @@ public final class ChannelBridge implements PluginMessageListener {
                 p.currentIndex = p.tracks.isEmpty() ? -1 : 0;
                 p.paused = false;
             }
-            case ServerProtocol.C2S_SET_PAUSED -> p.paused = d.readBoolean();
+            case ServerProtocol.C2S_SET_PAUSED -> {
+                boolean v = d.readBoolean();
+                if (v && !p.paused) p.pausedSince = System.currentTimeMillis();
+                else if (!v && p.paused) { p.pausedAccum += System.currentTimeMillis() - p.pausedSince; p.pausedSince = 0; }
+                p.paused = v;
+            }
             case ServerProtocol.C2S_SET_AUTOREMOVE -> p.autoRemovePlayed = d.readBoolean();
             case ServerProtocol.C2S_SET_SPONSORBLOCK -> p.sbFlags = (byte) (d.readByte() & 0x0F);
             case ServerProtocol.C2S_SET_REPEAT -> p.repeatOne = d.readBoolean();
             case ServerProtocol.C2S_SET_POSITION -> {
                 long ms = d.readLong();
-                for (UUID m : p.members.keySet()) { Player pl = Bukkit.getPlayer(m); if (pl != null) send(pl, ServerProtocol.seek(ms)); }
+                p.generation++;
+                p.anchor(ms);
+                for (UUID m : p.members.keySet()) { Player pl = Bukkit.getPlayer(m); if (pl != null) send(pl, ServerProtocol.seek(ms, p.generation)); }
                 return;
             }
+            case ServerProtocol.C2S_REANCHOR -> { int gen = d.readInt(); long pos = d.readLong(); if (gen == p.generation && pos > p.elapsed()) p.anchor(pos); return; }
             default -> { return; }
         }
         if (p.curTrackId() != oldCur) p.generation++;
+        if (p.generation != genBefore) p.anchor(0);
         broadcast(p);
     }
 

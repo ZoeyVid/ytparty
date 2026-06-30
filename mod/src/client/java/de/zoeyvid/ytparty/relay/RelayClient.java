@@ -123,7 +123,7 @@ public final class RelayClient {
             Thread writer = new Thread(() -> writerLoop(gen, queue, os, session), "ytparty-relay-writer");
             writer.setDaemon(true);
             writer.start();
-            Minecraft.getInstance().execute(() -> { PlayerController.INSTANCE.onPartyLeft(); PlayerController.INSTANCE.setSink(this::send); });
+            Minecraft.getInstance().execute(() -> { PlayerController.INSTANCE.onPartyLeft(); PlayerController.INSTANCE.setBackend(this::send); });
 
             long recvCtr = 1;
             while (gen == generation.get()) {
@@ -132,7 +132,7 @@ public final class RelayClient {
                 try { payload = RelayCrypto.decrypt(session, RelayCrypto.nonce(1, recvCtr), frame); }
                 catch (GeneralSecurityException e) { break; }
                 recvCtr++;
-                Minecraft.getInstance().execute(() -> ClientSync.handle(payload));
+                Minecraft.getInstance().execute(() -> ClientSync.dispatch(payload));
             }
             cleanup("disconnected");
         } catch (IOException | GeneralSecurityException e) {
@@ -166,7 +166,7 @@ public final class RelayClient {
         if (q != null) q.offer(POISON);
         try { if (socket != null) socket.close(); } catch (IOException ignored) {}
         socket = null; sendQueue = null;
-        Minecraft.getInstance().execute(() -> { PlayerController.INSTANCE.setSink(ClientSync.serverSink()); PlayerController.INSTANCE.onPartyLeft(); });
+        Minecraft.getInstance().execute(() -> { PlayerController.INSTANCE.setBackend(ClientSync.serverSink()); PlayerController.INSTANCE.onPartyLeft(); });
     }
 
     private static void writeBlob(DataOutputStream d, byte[] b) throws IOException { d.writeShort(b.length); d.write(b); }

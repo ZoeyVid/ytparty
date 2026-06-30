@@ -20,7 +20,7 @@ public final class InvitesScreen extends Screen {
     protected void init() {
         PlayerController c = PlayerController.INSTANCE;
         List<PlayerController.Invite> inv = c.pendingInvites();
-        if (c.inParty() || inv.isEmpty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
+        if (c.hasParty() || inv.isEmpty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
         lastCount = inv.size();
         int left = this.width / 2 - 160;
         addRenderableWidget(new StringWidget(left, 12, 320, 12, Component.literal("Pending invites"), this.font));
@@ -46,7 +46,7 @@ public final class InvitesScreen extends Screen {
     @Override
     public void tick() {
         PlayerController c = PlayerController.INSTANCE;
-        if (c.inParty() || c.pendingInvites().isEmpty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
+        if (c.hasParty() || c.pendingInvites().isEmpty()) { this.minecraft.setScreenAndShow(new PlaylistScreen()); return; }
         if (c.pendingInvites().size() != lastCount) rebuildWidgets();
     }
 

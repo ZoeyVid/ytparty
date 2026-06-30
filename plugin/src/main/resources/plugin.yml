@@ -1,5 +1,5 @@
 name: YtParty
 version: '${version}'
 main: de.zoeyvid.ytparty.YtPartyPlugin
-api-version: '26.1'
+api-version: '26.2'
 author: Zoey

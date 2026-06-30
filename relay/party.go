@@ -48,6 +48,9 @@ type party struct {
 	repeatOne   bool
 	nextTrackId int
 	generation  int
+	trackStart  int64
+	pausedAccum int64
+	pausedSince int64
 }
 
 type trackRef struct {
