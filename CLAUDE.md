@@ -30,7 +30,7 @@ docs and identifiers are written in English.
 
 ## Build & run
 
-Toolchain: **JDK 25** (records, `Math.clamp`, ML-KEM via SunJCE), **Gradle 9.6**, **Go 1.26+**
+Toolchain: **JDK 25** (records, `Math.clamp`, ML-KEM via SunJCE), **Gradle 9.6.1**, **Go 1.26+**
 (stdlib `crypto/ecdh` + `crypto/mlkem`).
 
 ```sh
@@ -59,8 +59,8 @@ and pass `-Dorg.gradle.java.installations.paths=$JAVA_HOME`. Not needed on a nor
 ## Minecraft 26.1 / Fabric gotchas (hard-won — verify with `javap` before trusting memory)
 
 - **26.1 is fully unobfuscated** (official Mojang names). The mod's `build.gradle` must **not** set
-  `mappings loom.officialMojangMappings()`. Loom 1.17.12, Loader 0.19.3, Fabric API
-  `0.153.0+26.2`, Shadow 9.4.2. Paper: `io.papermc.paper:paper-api:26.2.build.+`.
+  `mappings loom.officialMojangMappings()`. Loom 1.17.13, Loader 0.19.3, Fabric API
+  `0.154.0+26.2`, Shadow 9.4.3. Paper: `io.papermc.paper:paper-api:26.2.build.+`.
 - **`GuiGraphics` does not exist in 26.1.** Screens use the extracted render-state pipeline
   (`extractRenderState(GuiGraphicsExtractor,…)`), so you cannot draw custom primitives the old way.
   **Stick to widgets** (`StringWidget`, `Button`, `EditBox`, `AbstractSliderButton` via

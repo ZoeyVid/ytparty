@@ -6,7 +6,7 @@
 |-------|-------|
 | Minecraft | 26.2 (Java 25, `year.drop.hotfix` scheme) |
 | Mappings | official Mojang mappings (Yarn is gone for 26.1) |
-| Fabric | Loom 1.17.12, Gradle 9.6, Loader 0.19.3, API `0.153.0+26.2` |
+| Fabric | Loom 1.17.13, Gradle 9.6.1, Loader 0.19.3, API `0.154.0+26.2` |
 | Paper | `io.papermc.paper:paper-api:26.2.build.+` |
 | LavaPlayer | `dev.arbjerg:lavaplayer:2.2.6` (Maven Central) |
 | YouTube source | `dev.lavalink.youtube:common:1.18.1` (`https://maven.lavalink.dev/releases`) |
@@ -15,7 +15,7 @@
 
 ## Building
 
-Mod and plugin need **JDK 25**; the relay needs Go 1.26. The Gradle wrapper (9.6.0) is included.
+Mod and plugin need **JDK 25**; the relay needs Go 1.26. The Gradle wrapper (9.6.1) is included.
 
 ```
 cd mod    && ./gradlew shadowJar serverJar   # build/libs/ytparty-0.1.0-bundle.jar (~33 MB) + -server.jar (~21 KB)

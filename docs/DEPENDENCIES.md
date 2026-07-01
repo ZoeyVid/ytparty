@@ -22,7 +22,7 @@ No bundled libraries. The YAML config uses Bukkit's built-in parser (no extra li
 |---|---|
 | `com.mojang:minecraft` | `26.2` |
 | `net.fabricmc:fabric-loader` | `0.19.3` |
-| `net.fabricmc.fabric-api:fabric-api` | `0.153.0+26.2` (goes into `mods/`) |
+| `net.fabricmc.fabric-api:fabric-api` | `0.154.0+26.2` (goes into `mods/`) |
 | LWJGL / OpenAL | supplied by Minecraft |
 
 ### Bundled directly (only in the **full bundle jar**, not the server jar)
@@ -61,7 +61,7 @@ server classes (dedicated servers never play audio).
 | Tool | Version | For |
 |---|---|---|
 | JDK (Temurin) | 25 | mod + plugin |
-| Gradle (wrapper) | 9.6.0 | mod + plugin |
-| Fabric Loom | 1.17.12 | mod |
-| Gradle Shadow | 9.4.2 | mod (full bundle) |
+| Gradle (wrapper) | 9.6.1 | mod + plugin |
+| Fabric Loom | 1.17.13 | mod |
+| Gradle Shadow | 9.4.3 | mod (full bundle) |
 | Go | 1.26 | relay |
