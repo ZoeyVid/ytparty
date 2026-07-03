@@ -34,7 +34,7 @@ jobs:
           github-prerelease: false
           name: Plugin
           version: plugin-rolling
-          github-tag: plugin-rolling
+          github-tag: plugin
           files: plugin/build/libs/*.jar
           java: |
             25
