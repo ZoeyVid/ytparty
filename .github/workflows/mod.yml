@@ -41,7 +41,7 @@ jobs:
           name: Mod
           version: mod-rolling
           github-tag: mod-rolling
-          files: plugin/build/libs/*.jar
+          files: mod/build/libs/*.jar
           java: |
             25
           loaders: |
