@@ -46,3 +46,4 @@ jobs:
             26.2
           modrinth-id: ohwyynXQ
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
