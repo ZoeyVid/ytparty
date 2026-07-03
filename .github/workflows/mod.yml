@@ -33,3 +33,20 @@ jobs:
           archive: false
           if-no-files-found: error
           retention-days: 7
+      - uses: Kir-Antipov/mc-publish@995edadc13559a8b28d0b7e6571229f067ec7659 # v3.3.0
+        with:
+          version-type: release
+          modrinth-featured: true
+          github-prerelease: false
+          name: Mod
+          version: mod-rolling
+          github-tag: mod-rolling
+          files: plugin/build/libs/*.jar
+          java: |
+            25
+          loaders: |
+            fabric
+          game-versions: |
+            26.2
+          modrinth-id: ohwyynXQ
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
