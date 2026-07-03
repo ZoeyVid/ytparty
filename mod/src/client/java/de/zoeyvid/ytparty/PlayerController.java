@@ -198,9 +198,19 @@ public final class PlayerController {
 
     public void toggleAutoRemove() { if (ctrl()) sink.send(SyncProtocol.setAutoRemove(!autoRemovePlayed)); }
 
-    public void skip() { if (ctrl()) { Track t = playlist.get(currentIndex + 1); if (t != null) sink.send(SyncProtocol.setTrack(t.id())); } }
+    public void skip() {
+        if (!ctrl()) return;
+        if (playlist.size() == 1) { sink.send(SyncProtocol.setPosition(0)); return; }
+        Track t = playlist.get(currentIndex + 1 >= playlist.size() ? 0 : currentIndex + 1);
+        if (t != null) sink.send(SyncProtocol.setTrack(t.id()));
+    }
 
-    public void previous() { if (ctrl()) { Track t = playlist.get(currentIndex - 1); if (t != null) sink.send(SyncProtocol.setTrack(t.id())); } }
+    public void previous() {
+        if (!ctrl()) return;
+        if (playlist.size() == 1) { sink.send(SyncProtocol.setPosition(0)); return; }
+        Track t = playlist.get(currentIndex - 1 < 0 ? playlist.size() - 1 : currentIndex - 1);
+        if (t != null) sink.send(SyncProtocol.setTrack(t.id()));
+    }
 
     private void onTrackEnded() { if (ctrl()) sink.send(SyncProtocol.trackEnded(partyGeneration)); }
 
