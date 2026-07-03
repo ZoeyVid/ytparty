@@ -30,7 +30,7 @@ public final class PartyManager {
 
     public Party create(Player host) {
         String id = newId();
-        Party party = new Party(id, host.getUniqueId(), false, PermissionLevel.LISTEN);
+        Party party = new Party(id, host.getUniqueId());
         byId.put(id, party);
         playerToParty.put(host.getUniqueId(), id);
         return party;

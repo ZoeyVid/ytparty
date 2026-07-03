@@ -26,7 +26,7 @@ public final class PartyManager {
 
     public Party create(UUID host) {
         String id = newId();
-        Party party = new Party(id, host, false, PermissionLevel.LISTEN);
+        Party party = new Party(id, host);
         byId.put(id, party);
         playerToParty.put(host, id);
         return party;

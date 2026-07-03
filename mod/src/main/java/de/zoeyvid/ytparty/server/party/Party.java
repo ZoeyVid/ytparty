@@ -15,7 +15,7 @@ public final class Party {
     public final Map<UUID, PermissionLevel> invites = new HashMap<>();
     public final List<TrackRef> tracks = new ArrayList<>();
     public boolean isPublic;
-    public PermissionLevel publicJoinLevel;
+    public PermissionLevel publicJoinLevel = PermissionLevel.LISTEN;
     public int currentIndex = -1;
     public boolean paused = false;
     public boolean autoRemovePlayed = true;
@@ -37,8 +37,8 @@ public final class Party {
         return Math.max(0, base - trackStart - pausedAccum);
     }
 
-    public Party(String id, UUID host, boolean isPublic, PermissionLevel publicJoinLevel) {
-        this.id = id; this.isPublic = isPublic; this.publicJoinLevel = publicJoinLevel;
+    public Party(String id, UUID host) {
+        this.id = id;
         members.put(host, PermissionLevel.MANAGE);
     }
 
