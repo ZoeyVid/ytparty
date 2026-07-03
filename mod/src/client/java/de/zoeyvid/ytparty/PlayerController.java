@@ -159,9 +159,18 @@ public final class PlayerController {
 
     public void createParty() {
         if (backend == null) return;
-        List<Track> carry = playlist.view();
         backend.send(SyncProtocol.create());
+        List<Track> carry = playlist.view();
         if (!carry.isEmpty()) backend.send(SyncProtocol.setPlaylist(carry));
+        Track cur = playlist.get(currentIndex);
+        if (cur != null) {
+            backend.send(SyncProtocol.setTrack(cur.id()));
+            backend.send(SyncProtocol.setPosition(audio.position()));
+            if (paused) backend.send(SyncProtocol.setPaused(true));
+        }
+        backend.send(SyncProtocol.setRepeat(repeatOne));
+        backend.send(SyncProtocol.setAutoRemove(autoRemovePlayed));
+        backend.send(SyncProtocol.setSponsorBlock(ClientConfig.sbFlags()));
     }
 
     public void applyPlaylistText(String text, Runnable onDone) {
@@ -200,14 +209,14 @@ public final class PlayerController {
 
     public void skip() {
         if (!ctrl()) return;
-        if (playlist.size() == 1) { sink.send(SyncProtocol.setPosition(0)); return; }
+        if (playlist.size() == 1) { if (paused) sink.send(SyncProtocol.setPaused(false)); sink.send(SyncProtocol.setPosition(0)); return; }
         Track t = playlist.get(currentIndex + 1 >= playlist.size() ? 0 : currentIndex + 1);
         if (t != null) sink.send(SyncProtocol.setTrack(t.id()));
     }
 
     public void previous() {
         if (!ctrl()) return;
-        if (playlist.size() == 1) { sink.send(SyncProtocol.setPosition(0)); return; }
+        if (playlist.size() == 1) { if (paused) sink.send(SyncProtocol.setPaused(false)); sink.send(SyncProtocol.setPosition(0)); return; }
         Track t = playlist.get(currentIndex - 1 < 0 ? playlist.size() - 1 : currentIndex - 1);
         if (t != null) sink.send(SyncProtocol.setTrack(t.id()));
     }
@@ -249,13 +258,7 @@ public final class PlayerController {
         if (partyId.isEmpty()) ClientConfig.save();
     }
 
-    public void onPartyLeft() { inParty = false; myLevel = MANAGE; isPublic = false; autoRemovePlayed = true; repeatOne = false; partyGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }
-
-    public void onWorldDisconnect(boolean stopAudio) {
-        onPartyLeft();
-        if (stopAudio) { currentIndex = -1; loadedUri = null; audio.stop(); }
-        syncLocalParty();
-    }
+    public void onPartyLeft() { inParty = false; myLevel = MANAGE; isPublic = false; partyGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }
 
     private void syncLocalParty() {
         Party p = localSink.party;

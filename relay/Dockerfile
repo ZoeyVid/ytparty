@@ -6,6 +6,6 @@ COPY . /src
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -buildmode=pie -trimpath -ldflags="-s -w -buildid=" -o relay .
 
 FROM scratch
+USER 1000:1000
 COPY --from=build /src/relay /usr/local/bin/relay
-EXPOSE 25599
 ENTRYPOINT ["relay"]

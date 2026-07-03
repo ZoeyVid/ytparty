@@ -31,8 +31,7 @@ public final class ClientSync {
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             if (RelayClient.INSTANCE.connected()) return;
-            boolean stopAudio = PlayerController.INSTANCE.hasParty() && !client.hasSingleplayerServer();
-            PlayerController.INSTANCE.onWorldDisconnect(stopAudio);
+            PlayerController.INSTANCE.onPartyLeft();
         });
     }
 
