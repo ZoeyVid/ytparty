@@ -247,6 +247,7 @@ public final class PlayerController {
         partyGeneration = s.generation();
         playlist.replaceAll(s.tracks());
         currentIndex = s.currentIndex();
+        if (partyId.isEmpty()) ClientConfig.save();
         Track t = playlist.get(currentIndex);
         if (t == null) { loadedUri = null; segments = List.of(); segmentsUri = ""; pendingJoinElapsed = -1; audio.stop(); return; }
         boolean trackChanged = false;
@@ -255,7 +256,6 @@ public final class PlayerController {
         if (!wasInParty) pendingJoinElapsed = s.elapsed();
         else if (trackChanged) pendingJoinElapsed = -1;
         audio.setPaused(paused);
-        if (partyId.isEmpty()) ClientConfig.save();
     }
 
     public void onPartyLeft() { inParty = false; myLevel = MANAGE; isPublic = false; partyGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }

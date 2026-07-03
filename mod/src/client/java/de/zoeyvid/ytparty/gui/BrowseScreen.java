@@ -5,6 +5,7 @@ import de.zoeyvid.ytparty.net.SyncProtocol;
 import de.zoeyvid.ytparty.net.ClientSync;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -24,7 +25,7 @@ public final class BrowseScreen extends Screen {
         lastVersion = PlayerController.INSTANCE.publicListVersion();
         int left = this.width / 2 - 160;
         addRenderableWidget(new StringWidget(left, 12, 240, 12, Component.literal("Public parties"), this.font));
-        addRenderableWidget(Button.builder(Component.literal("Refresh"), b -> PlayerController.INSTANCE.requestPublicList()).bounds(left + 244, 5, 76, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Refresh"), b -> PlayerController.INSTANCE.requestPublicList()).tooltip(Tooltip.create(Component.literal("Reload the public party list"))).bounds(left + 244, 5, 76, 20).build());
 
         List<SyncProtocol.PartyEntry> parties = PlayerController.INSTANCE.publicParties();
         int top = 30;
@@ -40,12 +41,12 @@ public final class BrowseScreen extends Screen {
                 String label = e.id() + " \u2014 " + e.members() + (e.members() == 1 ? " member" : " members") + suffix;
                 addRenderableWidget(new StringWidget(left, y + 6, 240, 12, Component.literal(label), this.font));
                 String id = e.id();
-                addRenderableWidget(Button.builder(Component.literal("Join"), b -> { PlayerController.INSTANCE.joinParty(id); }).bounds(left + 244, y, 76, 20).build());
+                addRenderableWidget(Button.builder(Component.literal("Join"), b -> { PlayerController.INSTANCE.joinParty(id); }).tooltip(Tooltip.create(Component.literal("Join this public party"))).bounds(left + 244, y, 76, 20).build());
             }
             if (parties.size() > MAX_ROWS)
                 addRenderableWidget(new StringWidget(left, top + MAX_ROWS * 24 + 2, 320, 12, Component.literal("\u2195 " + (scroll + 1) + "\u2013" + end + " / " + parties.size()), this.font));
         }
-        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen())).bounds(left, this.height - 28, 320, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen())).tooltip(Tooltip.create(Component.literal("Back to the playlist"))).bounds(left, this.height - 28, 320, 20).build());
     }
 
     @Override

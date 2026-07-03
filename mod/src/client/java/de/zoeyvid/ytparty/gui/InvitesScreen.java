@@ -40,7 +40,7 @@ public final class InvitesScreen extends Screen {
         if (inv.size() > MAX_ROWS)
             addRenderableWidget(new StringWidget(left, top + MAX_ROWS * 22 + 2, 320, 12, Component.literal("\u2195 " + (scroll + 1) + "\u2013" + end + " / " + inv.size()), this.font));
 
-        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen())).bounds(left, this.height - 28, 320, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen())).tooltip(Tooltip.create(Component.literal("Back to the playlist"))).bounds(left, this.height - 28, 320, 20).build());
     }
 
     @Override

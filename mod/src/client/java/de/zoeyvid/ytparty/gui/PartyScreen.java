@@ -62,7 +62,7 @@ public final class PartyScreen extends Screen {
             addRenderableWidget(Button.builder(Component.literal("Invite players\u2026"), b -> this.minecraft.setScreenAndShow(new InviteScreen())).tooltip(Tooltip.create(Component.literal("Invite online players"))).bounds(left, y, 320, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))
-            .bounds(left, this.height - 28, 320, 20).build());
+            .tooltip(Tooltip.create(Component.literal("Back to the playlist"))).bounds(left, this.height - 28, 320, 20).build());
     }
 
     @Override

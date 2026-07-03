@@ -53,6 +53,7 @@ public final class InviteScreen extends Screen {
         filterField.setHint(Component.literal("Search players"));
         filterField.setMaxLength(64);
         filterField.setValue(savedFilter);
+        filterField.setTooltip(Tooltip.create(Component.literal("Type to filter the online players")));
         addRenderableWidget(filterField);
         setFocused(filterField);
 
@@ -73,7 +74,7 @@ public final class InviteScreen extends Screen {
         if (m.isEmpty()) addRenderableWidget(new StringWidget(left, rowTop + 4, 320, 12, Component.literal("No players online to invite"), this.font));
         else if (m.size() > PICK_ROWS) addRenderableWidget(new StringWidget(left, rowTop + PICK_ROWS * 22 + 2, 320, 12, Component.literal("\u2195 " + (scroll + 1) + "\u2013" + end + " / " + m.size()), this.font));
 
-        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PartyScreen())).bounds(left, this.height - 28, 320, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PartyScreen())).tooltip(Tooltip.create(Component.literal("Back to the party"))).bounds(left, this.height - 28, 320, 20).build());
     }
 
     @Override

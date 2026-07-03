@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -33,14 +34,15 @@ public final class PlaylistEditScreen extends Screen {
         box.setValue(text);
         box.setValueListener(v -> text = v);
         box.active = !applying;
+        box.setTooltip(Tooltip.create(Component.literal("One URL per line \u2014 Apply replaces the whole playlist")));
         addRenderableWidget(box);
 
         Button apply = Button.builder(Component.literal(applying ? "Resolving\u2026" : "Apply"), b -> doApply())
-            .bounds(left, this.height - 52, 157, 20).build();
+            .tooltip(Tooltip.create(Component.literal("Replace the whole playlist with these URLs"))).bounds(left, this.height - 52, 157, 20).build();
         apply.active = editable && !applying;
         addRenderableWidget(apply);
         addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))
-            .bounds(left + 163, this.height - 52, 157, 20).build());
+            .tooltip(Tooltip.create(Component.literal("Discard changes and go back"))).bounds(left + 163, this.height - 52, 157, 20).build());
     }
 
     private void doApply() {

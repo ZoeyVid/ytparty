@@ -57,6 +57,7 @@ public final class PlaylistScreen extends Screen {
         urlField.setHint(Component.literal("YouTube video URL"));
         urlField.setValue(savedUrl);
         urlField.setEditable(canEdit);
+        urlField.setTooltip(Tooltip.create(Component.literal("Paste a YouTube video URL, then Add")));
         addRenderableWidget(urlField);
         btn("Add", () -> {
             String text = urlField.getValue().trim();

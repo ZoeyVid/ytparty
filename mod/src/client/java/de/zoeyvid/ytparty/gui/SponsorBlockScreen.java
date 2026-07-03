@@ -5,6 +5,7 @@ import de.zoeyvid.ytparty.PlayerController;
 import de.zoeyvid.ytparty.audio.SponsorBlock;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -30,23 +31,23 @@ public final class SponsorBlockScreen extends Screen {
         addRenderableWidget(new StringWidget(left, 12, 320, 12,
             Component.literal(c.hasParty() ? "SponsorBlock \u2014 party (managers control)" : "SponsorBlock \u2014 your settings"), this.font));
 
-        toggle(left, top, "SponsorBlock", flags, SponsorBlock.FLAG_ENABLED);
+        toggle(left, top, "SponsorBlock", "Master switch for skipping segments", flags, SponsorBlock.FLAG_ENABLED);
         boolean on = (flags & SponsorBlock.FLAG_ENABLED) != 0;
-        toggle(left, top + 26, "Sponsor segments", flags, SponsorBlock.FLAG_SPONSOR).active = editable() && on;
-        toggle(left, top + 52, "Unpaid / self-promotion", flags, SponsorBlock.FLAG_SELFPROMO).active = editable() && on;
-        toggle(left, top + 78, "Music: non-music section", flags, SponsorBlock.FLAG_MUSIC).active = editable() && on;
+        toggle(left, top + 26, "Sponsor segments", "Skip paid sponsor promotions", flags, SponsorBlock.FLAG_SPONSOR).active = editable() && on;
+        toggle(left, top + 52, "Unpaid / self-promotion", "Skip unpaid self-promotion", flags, SponsorBlock.FLAG_SELFPROMO).active = editable() && on;
+        toggle(left, top + 78, "Music: non-music section", "Skip non-music intros and outros", flags, SponsorBlock.FLAG_MUSIC).active = editable() && on;
 
         if (c.hasParty() && !c.canManage())
             addRenderableWidget(new StringWidget(left, top + 106, 320, 12, Component.literal("Only a manager can change these."), this.font));
 
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))
-            .bounds(left, this.height - 28, 320, 20).build());
+            .tooltip(Tooltip.create(Component.literal("Back to the playlist"))).bounds(left, this.height - 28, 320, 20).build());
     }
 
-    private Button toggle(int x, int y, String label, byte flags, byte bit) {
+    private Button toggle(int x, int y, String label, String tip, byte flags, byte bit) {
         boolean set = (flags & bit) != 0;
         Button b = Button.builder(Component.literal(label + ": " + (set ? "ON" : "OFF")),
-            btn -> PlayerController.INSTANCE.setSponsorBlock((byte) (flags() ^ bit))).bounds(x, y, 320, 20).build();
+            btn -> PlayerController.INSTANCE.setSponsorBlock((byte) (flags() ^ bit))).tooltip(Tooltip.create(Component.literal(tip))).bounds(x, y, 320, 20).build();
         b.active = editable();
         addRenderableWidget(b);
         return b;
