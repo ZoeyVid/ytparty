@@ -39,7 +39,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            zoeyvid/mcyt:latest
-            ghcr.io/zoeyvid/mcyt:latest
-            zoeyvid/mcyt:${{ github.run_number }}
-            ghcr.io/zoeyvid/mcyt:${{ github.run_number }}
+            zoeyvid/ytparty:latest
+            ghcr.io/zoeyvid/ytparty:latest
+            zoeyvid/ytparty:${{ github.run_number }}
+            ghcr.io/zoeyvid/ytparty:${{ github.run_number }}

@@ -1,9 +1,9 @@
-name: mcyt
+name: ytparty
 services:
-  mcyt:
-    container_name: mcyt
+  ytparty:
+    container_name: ytparty
     restart: unless-stopped
-    image: zoeyvid/mcyt:latest # or ghcr.io/zoeyvid/mcyt:latest
+    image: zoeyvid/ytparty:latest # or ghcr.io/zoeyvid/ytparty:latest
     pull_policy: always
     network_mode: bridge
     ports:
