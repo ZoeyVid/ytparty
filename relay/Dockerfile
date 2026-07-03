@@ -8,7 +8,7 @@ ARG CGO_ENABLED=0
 RUN GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -buildmode=pie -trimpath -ldflags="-s -w -buildid=" -o relay .
 
 FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
-RUN apk add --no-cache tzdata tini
+RUN apk add --no-cache tini
 USER nobody:nobody
 COPY --from=build /src/relay /usr/local/bin/relay
 ENTRYPOINT ["tini", "--", "relay"]

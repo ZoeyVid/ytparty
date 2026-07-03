@@ -9,7 +9,4 @@ public enum PermissionLevel {
     public PermissionLevel cappedTo(PermissionLevel max) { return ordinal() <= max.ordinal() ? this : max; }
 
     public static PermissionLevel fromId(byte id) { PermissionLevel[] v = values(); return id >= 0 && id < v.length ? v[id] : LISTEN; }
-    public static PermissionLevel fromName(String s) {
-        return switch (s.toLowerCase()) { case "manage" -> MANAGE; case "invite" -> INVITE; default -> LISTEN; };
-    }
 }

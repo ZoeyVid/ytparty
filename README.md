@@ -93,8 +93,8 @@ search box for many players).
 
 | Backend | Install | Configuration |
 |---|---|---|
-| Fabric server | the **same `…-bundle.jar`** *or* the slim **`…-server.jar`** in `mods/` + Fabric API | `config/ytparty-server.properties` (created on first start) |
-| Paper plugin | `ytparty-plugin-….jar` in `plugins/` | `plugins/YtParty/config.yml` |
+| Fabric server | the **same `…-bundle.jar`** *or* the slim **`…-server.jar`** in `mods/` + Fabric API | none |
+| Paper plugin | `ytparty-plugin-….jar` in `plugins/` | none |
 | Relay | run the binary **or** Docker/Compose | environment only |
 
 All options (with defaults and meaning) are in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).

@@ -15,5 +15,3 @@ services:
     environment:
       TZ: Europe/Berlin
       YTPARTY_RELAY_PASSWORD:
-      # YTPARTY_DEFAULT_PUBLIC: false
-      # YTPARTY_PUBLIC_JOIN_LEVEL: listen  # listen | invite | manage

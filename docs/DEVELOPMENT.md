@@ -42,9 +42,9 @@ Both load through the same `YtPartyMain` entrypoint; the server jar just leaves 
 
 ## Configuration
 
-Formats: Paper = YAML (`config.yml`, built into Bukkit, no extra lib), Fabric = `.properties`
-(`config/ytparty-server.properties`, JDK built-in; YAML would need an extra library such as snakeyaml),
-relay = environment variables. **No JSON anywhere.** Every option with its default and meaning is in
+Only the relay is configurable (environment variables); Paper plugin and Fabric server mod have no
+config — party defaults are hardcoded (private, public-join level `listen`) and changed per party
+in-game. **No JSON anywhere.** Every option with its default and meaning is in
 [`CONFIGURATION.md`](CONFIGURATION.md).
 
 ## MC 26.2 API changes (applied)

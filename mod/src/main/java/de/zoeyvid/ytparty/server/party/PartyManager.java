@@ -19,11 +19,6 @@ public final class PartyManager {
         do { StringBuilder s = new StringBuilder(8); for (int i = 0; i < 8; i++) s.append(IDCHARS.charAt(RNG.nextInt(IDCHARS.length()))); id = s.toString(); } while (byId.containsKey(id));
         return id;
     }
-    private boolean defaultPublic = false;
-    private PermissionLevel defaultPublicLevel = PermissionLevel.LISTEN;
-
-    public void setDefaults(boolean pub, PermissionLevel level) { defaultPublic = pub; defaultPublicLevel = level; }
-
     public Party of(UUID player) { String id = playerToParty.get(player); return id != null ? byId.get(id) : null; }
     public Party get(String id) { return byId.get(id); }
     public List<Party> publicParties() { List<Party> out = new ArrayList<>(); for (Party p : byId.values()) if (p.isPublic) out.add(p); out.sort((a, b) -> Integer.compare(b.members.size(), a.members.size())); return out; }
@@ -31,7 +26,7 @@ public final class PartyManager {
 
     public Party create(UUID host) {
         String id = newId();
-        Party party = new Party(id, host, defaultPublic, defaultPublicLevel);
+        Party party = new Party(id, host, false, PermissionLevel.LISTEN);
         byId.put(id, party);
         playerToParty.put(host, id);
         return party;

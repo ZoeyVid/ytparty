@@ -189,8 +189,7 @@ Rules:
   separate op and shares the same disband/cleanup path; a non-manager's name payload is ignored.
 - **Public parties:** managers toggle `public on/off` and set whether joiners get `listen` or `manage`.
   Anyone may join a public party without an invite.
-- Defaults for new parties: Fabric `config/ytparty-server.properties`, Paper `config.yml`, relay env
-  (`default-public`, `public-join-level`) — see [`CONFIGURATION.md`](CONFIGURATION.md).
+- New parties always start private; joiners of a public party get `listen` (hardcoded on all three backends, changed per party in-game).
 
 Permissions are enforced **server-side** (identically on all three backends); the client UI only
 shows/hides buttons accordingly.

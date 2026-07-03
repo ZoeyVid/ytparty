@@ -2,7 +2,6 @@ package main
 
 import (
 	"slices"
-	"strings"
 )
 
 const (
@@ -11,16 +10,6 @@ const (
 	manage = 2
 )
 
-func levelFromName(s string) int {
-	switch strings.ToLower(s) {
-	case "manage":
-		return manage
-	case "invite":
-		return invite
-	default:
-		return listen
-	}
-}
 func lvl(b int) int {
 	if b < listen || b > manage {
 		return listen

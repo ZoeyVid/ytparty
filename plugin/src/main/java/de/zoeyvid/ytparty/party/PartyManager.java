@@ -14,8 +14,6 @@ public final class PartyManager {
 
     private final Map<String, Party> byId = new HashMap<>();
     private final Map<UUID, String> playerToParty = new HashMap<>();
-    private boolean defaultPublic = false;
-    private PermissionLevel defaultPublicLevel = PermissionLevel.LISTEN;
     private static final SecureRandom RNG = new SecureRandom();
     private static final String IDCHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
@@ -25,8 +23,6 @@ public final class PartyManager {
         return id;
     }
 
-    public void setDefaults(boolean pub, PermissionLevel level) { defaultPublic = pub; defaultPublicLevel = level; }
-
     public Party of(UUID player) { String id = playerToParty.get(player); return id != null ? byId.get(id) : null; }
     public Party get(String id) { return byId.get(id); }
     public List<Party> publicParties() { List<Party> out = new ArrayList<>(); for (Party p : byId.values()) if (p.isPublic) out.add(p); out.sort((a, b) -> Integer.compare(b.members.size(), a.members.size())); return out; }
@@ -34,7 +30,7 @@ public final class PartyManager {
 
     public Party create(Player host) {
         String id = newId();
-        Party party = new Party(id, host.getUniqueId(), defaultPublic, defaultPublicLevel);
+        Party party = new Party(id, host.getUniqueId(), false, PermissionLevel.LISTEN);
         byId.put(id, party);
         playerToParty.put(host.getUniqueId(), id);
         return party;

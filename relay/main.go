@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -41,8 +40,6 @@ func main() {
 		conns:         map[string]*conn{},
 		tokens:        map[string]tokenInfo{},
 		perIP:         map[string]*ipState{},
-		defPublic:     strings.ToLower(env("YTPARTY_DEFAULT_PUBLIC", "false")) == "true",
-		defLevel:      levelFromName(env("YTPARTY_PUBLIC_JOIN_LEVEL", "listen")),
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

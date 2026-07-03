@@ -15,11 +15,4 @@ public enum PermissionLevel {
         return id >= 0 && id < v.length ? v[id] : LISTEN;
     }
 
-    public static PermissionLevel fromName(String s) {
-        return switch (s.toLowerCase()) {
-            case "manage" -> MANAGE;
-            case "invite" -> INVITE;
-            default -> LISTEN;
-        };
-    }
 }
