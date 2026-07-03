@@ -37,11 +37,13 @@ jobs:
         with:
           version-type: release
           modrinth-featured: true
-          github-prerelease: true
+          github-prerelease: false
           name: Mod
           version: mod-rolling
           github-tag: mod
-          files: mod/build/libs/*.jar
+          files: | 
+            mod/build/libs/*-bundle.jar
+            mod/build/libs/*-server.jar
           java: |
             25
           loaders: |
