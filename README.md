@@ -105,8 +105,8 @@ Relay quickly via Compose (password e.g. from a `.env` file):
 YTPARTY_RELAY_PASSWORD=… docker compose up -d   # compose.yaml + relay/Dockerfile
 ```
 
-If you don't set `YTPARTY_RELAY_PASSWORD`, the relay generates a random one and prints it to the
-console (lost on the next restart).
+`YTPARTY_RELAY_PASSWORD` is required: if unset, the relay refuses to start and prints a randomly
+generated example key to copy.
 
 ---
 
@@ -120,8 +120,9 @@ cd plugin && ./gradlew build                 # ytparty-plugin-0.1.0.jar
 cd relay  && CGO_ENABLED=0 go build -ldflags "-s -w" -o ytparty-relay .   # static binary
 ```
 
-CI workflows in [`.github/workflows/build.yml`](.github/workflows/build.yml) build everything
-(the relay statically for x86_64 + aarch64).
+CI workflows in [`.github/workflows/`](.github/workflows/): `mod.yml` and `plugin.yml` build the
+jars, `relay.yml` builds and pushes the multi-arch Docker image (amd64 + arm64), plus lint workflows
+(hadolint, shellcheck, codespell, JSON).
 
 ---
 
@@ -141,7 +142,7 @@ CI workflows in [`.github/workflows/build.yml`](.github/workflows/build.yml) bui
 | [`docs/PROTOCOL.md`](docs/PROTOCOL.md) | Wire protocol (C2S/S2C) + permission system |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Security model, relay crypto, hardening, residual risks |
 | [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md) | All external dependencies |
-| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Versions, build, 26.1 API, lessons, performance |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Versions, build, 26.2 API, lessons, performance |
 | [`relay/README.md`](relay/README.md) | Build & run the relay |
 
 ## Legal
