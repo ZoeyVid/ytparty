@@ -1,0 +1,28 @@
+name: plugin
+on:
+  push:
+    paths:
+      - plugin/**
+  workflow_dispatch:
+jobs:
+  plugin:
+    name: paper plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: corretto
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-disabled: true
+      - name: build jar
+        working-directory: plugin
+        run: ./gradlew build --no-daemon --stacktrace
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: plugin/build/libs/*.jar
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
