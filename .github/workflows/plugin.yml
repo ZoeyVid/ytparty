@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - plugin/**
+      - .github/workflows/plugin.yml
   workflow_dispatch:
 jobs:
   plugin:

@@ -29,15 +29,15 @@ No bundled libraries. The YAML config uses Bukkit's built-in parser (no extra li
 
 | Dependency | Version | For |
 |---|---|---|
-| `dev.arbjerg:lavaplayer` | `2.2.6` | audio extraction + decoding (in-JVM) |
+| `dev.arbjerg:lavaplayer` | `2.2.7` | audio extraction + decoding (in-JVM) |
 | `dev.lavalink.youtube:common` | `1.18.1` | YouTube source for LavaPlayer |
 
 ### Pulled in transitively (via the two above, all bundled)
 
 | Dependency | Version |
 |---|---|
-| `dev.arbjerg:lava-common` | `2.2.6` |
-| `dev.arbjerg:lavaplayer-natives` | `2.2.6` (decoder natives, all platforms) |
+| `dev.arbjerg:lava-common` | `2.2.7` |
+| `dev.arbjerg:lavaplayer-natives` | `2.2.7` (decoder natives, all platforms) |
 | `org.apache.httpcomponents:httpclient` | `4.5.14` |
 | `org.apache.httpcomponents:httpcore` | `4.4.16` |
 | `com.fasterxml.jackson.core:jackson-databind` | `2.15.2` |

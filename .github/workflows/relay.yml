@@ -5,6 +5,7 @@ on:
       - latest
     paths:
       - relay/**
+      - .github/workflows/relay.yml
   workflow_dispatch:
 jobs:
   build:

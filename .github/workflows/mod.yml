@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - mod/**
+      - .github/workflows/mod.yml
   workflow_dispatch:
 jobs:
   mod:

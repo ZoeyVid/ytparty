@@ -8,7 +8,7 @@
 | Mappings | official Mojang mappings (Yarn is gone for 26.1) |
 | Fabric | Loom 1.17.13, Gradle 9.6.1, Loader 0.19.3, API `0.154.0+26.2` |
 | Paper | `io.papermc.paper:paper-api:26.2.build.+` |
-| LavaPlayer | `dev.arbjerg:lavaplayer:2.2.6` (Maven Central) |
+| LavaPlayer | `dev.arbjerg:lavaplayer:2.2.7` (Maven Central) |
 | YouTube source | `dev.lavalink.youtube:common:1.18.1` (`https://maven.lavalink.dev/releases`) |
 | Relay | Go 1.26 (stdlib only) |
 | Packages | `de.zoeyvid.ytparty` (mod + plugin), Go module `zoeyvid.de/ytparty-relay` |
