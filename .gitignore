@@ -1,11 +1,3 @@
-# ---------------------------------------------------------------------------
-# Combined from GitHub's official templates (github/gitignore):
-#   Java.gitignore, Gradle.gitignore, Go.gitignore
-# Order matters: Java ignores *.jar, Gradle re-includes gradle-wrapper.jar,
-# so Java must come before Gradle for the wrapper to stay tracked.
-# ---------------------------------------------------------------------------
-
-### Java (github/gitignore) ###
 # Compiled class file
 *.class
 
@@ -31,7 +23,7 @@
 hs_err_pid*
 replay_pid*
 
-### Gradle (github/gitignore) ###
+
 .gradle
 **/build/
 !**/src/**/build/
@@ -42,7 +34,7 @@ gradle-app.setting
 # Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
 !gradle-wrapper.jar
 
-# Avoid ignore Gradle wrapper properties
+# Avoid ignore Gradle wrappper properties
 !gradle-wrapper.properties
 
 # Cache of project
@@ -54,7 +46,7 @@ gradle-app.setting
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
 
-### Go (github/gitignore) ###
+
 # If you prefer the allow list template instead of the deny list, see community template:
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
@@ -87,15 +79,3 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
-
-# ---------------------------------------------------------------------------
-# Project-specific
-# ---------------------------------------------------------------------------
-# Compiled relay binary (local build + cross-compiled releases)
-/relay/ytparty-relay
-ytparty-relay-linux-*
-
-# OS / desktop junk
-.DS_Store
-.directory
-*~
