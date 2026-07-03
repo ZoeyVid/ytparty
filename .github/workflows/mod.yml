@@ -37,10 +37,10 @@ jobs:
         with:
           version-type: release
           modrinth-featured: true
-          github-prerelease: false
+          github-prerelease: true
           name: Mod
           version: mod-rolling
-          github-tag: mod-rolling
+          github-tag: mod
           files: mod/build/libs/*.jar
           java: |
             25
