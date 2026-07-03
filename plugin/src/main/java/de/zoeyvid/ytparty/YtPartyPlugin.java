@@ -25,8 +25,10 @@ public final class YtPartyPlugin extends JavaPlugin implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID u = event.getPlayer().getUniqueId();
-        bridge.afterLeave(manager.leave(u));
-        manager.forgetInvites(u);
-        bridge.forget(u);
+        synchronized (manager) {
+            bridge.afterLeave(manager.leave(u));
+            manager.forgetInvites(u);
+            bridge.forget(u);
+        }
     }
 }

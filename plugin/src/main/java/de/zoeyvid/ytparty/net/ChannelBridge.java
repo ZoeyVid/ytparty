@@ -91,20 +91,22 @@ public final class ChannelBridge implements PluginMessageListener {
     @Override
     public void onPluginMessageReceived(String channel, Player player, byte[] message) {
         if (!channel.equals(ServerProtocol.CHANNEL) || message.length == 0) return;
-        if (!allow(player.getUniqueId())) return;
-        try (DataInputStream d = new DataInputStream(new ByteArrayInputStream(message))) {
-            byte op = d.readByte();
-            switch (op) {
-                case ServerProtocol.C2S_CREATE -> create(player);
-                case ServerProtocol.C2S_JOIN -> join(player, d.readUTF());
-                case ServerProtocol.C2S_LEAVE -> leave(player, d.available() > 0 ? d.readUTF() : "");
-                case ServerProtocol.C2S_INVITE -> handleInvite(player, d.readUTF(), d.readByte());
-                case ServerProtocol.C2S_SET_LEVEL -> handleSetLevel(player, d.readUTF(), d.readByte());
-                case ServerProtocol.C2S_SET_PUBLIC -> handleSetPublic(player, d.readBoolean(), d.readByte());
-                case ServerProtocol.C2S_LIST_PUBLIC -> send(player, ServerProtocol.publicList(manager.publicParties()));
-                default -> handleControlOp(player, op, d);
-            }
-        } catch (IOException ignored) {}
+        synchronized (manager) {
+            if (!allow(player.getUniqueId())) return;
+            try (DataInputStream d = new DataInputStream(new ByteArrayInputStream(message))) {
+                byte op = d.readByte();
+                switch (op) {
+                    case ServerProtocol.C2S_CREATE -> create(player);
+                    case ServerProtocol.C2S_JOIN -> join(player, d.readUTF());
+                    case ServerProtocol.C2S_LEAVE -> leave(player, d.available() > 0 ? d.readUTF() : "");
+                    case ServerProtocol.C2S_INVITE -> handleInvite(player, d.readUTF(), d.readByte());
+                    case ServerProtocol.C2S_SET_LEVEL -> handleSetLevel(player, d.readUTF(), d.readByte());
+                    case ServerProtocol.C2S_SET_PUBLIC -> handleSetPublic(player, d.readBoolean(), d.readByte());
+                    case ServerProtocol.C2S_LIST_PUBLIC -> send(player, ServerProtocol.publicList(manager.publicParties()));
+                    default -> handleControlOp(player, op, d);
+                }
+            } catch (IOException ignored) {}
+        }
     }
 
     private void handleInvite(Player player, String name, byte levelId) {
