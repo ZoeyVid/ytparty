@@ -115,9 +115,9 @@ generated example key to copy.
 Mod + plugin need **JDK 25**, the relay needs **Go 1.26**. The Gradle wrapper is included.
 
 ```
-cd mod    && ./gradlew shadowJar serverJar   # bundle.jar (~33 MB) + server.jar (~21 KB)
+cd mod && ./gradlew shadowJar serverJar   # bundle.jar (~33 MB) + server.jar (~21 KB)
 cd plugin && ./gradlew build                 # ytparty-plugin-0.1.0.jar
-cd relay  && CGO_ENABLED=0 go build -ldflags "-s -w" -o ytparty-relay .   # static binary
+go build -tags timetzdata -buildmode=pie -trimpath -ldflags="-s -w -buildid=" -o relay relay
 ```
 
 CI workflows in [`.github/workflows/`](.github/workflows/): `mod.yml` and `plugin.yml` build the
