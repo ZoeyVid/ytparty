@@ -4,6 +4,10 @@ on:
     paths:
       - plugin/**
       - .github/workflows/plugin.yml
+  pull_request:
+    paths:
+      - plugin/**
+      - .github/workflows/plugin.yml
   workflow_dispatch:
 jobs:
   plugin:
