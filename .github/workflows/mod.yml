@@ -4,6 +4,10 @@ on:
     paths:
       - mod/**
       - .github/workflows/mod.yml
+  pull_request:
+    paths:
+      - mod/**
+      - .github/workflows/mod.yml
   workflow_dispatch:
 jobs:
   mod:
