@@ -1,8 +1,10 @@
-name: relay-docker
+name: relay
 on:
   push:
-    branches:
-      - latest
+    paths:
+      - relay/**
+      - .github/workflows/relay.yml
+  pull_request:
     paths:
       - relay/**
       - .github/workflows/relay.yml
@@ -19,11 +21,13 @@ jobs:
           driver-opts: env.BUILDKIT_STEP_LOG_MAX_SIZE=-1
       - name: Login to DockerHub
         uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        if: github.ref_name == 'latest'
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Login to GitHub Container Registry
         uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        if: github.ref_name == 'latest'
         with:
           registry: ghcr.io
           username: zoeyvid
@@ -33,7 +37,7 @@ jobs:
         with:
           context: relay
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ github.ref_name == 'latest' }}
           tags: |
             zoeyvid/ytparty:latest
             ghcr.io/zoeyvid/ytparty:latest
