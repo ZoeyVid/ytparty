@@ -30,6 +30,9 @@ jobs:
           path: plugin/build/libs/*.jar
           archive: false
           if-no-files-found: error
+      - id: date
+        if: github.ref_name == 'latest'
+        run: echo "value=$(date +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
       - uses: Kir-Antipov/mc-publish@995edadc13559a8b28d0b7e6571229f067ec7659 # v3.3.0
         if: github.ref_name == 'latest'
         with:
@@ -37,8 +40,8 @@ jobs:
           modrinth-featured: true
           github-prerelease: false
           name: Plugin
-          version: plugin-rolling
-          github-tag: plugin
+          version: plugin-${{ steps.date.outputs.value }}
+          github-tag: plugin-${{ steps.date.outputs.value }}
           files: plugin/build/libs/*.jar
           java: |
             25
