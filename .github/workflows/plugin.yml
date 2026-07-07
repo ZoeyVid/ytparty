@@ -46,6 +46,7 @@ jobs:
           java: |
             25
           loaders: |
+            bukkit
             spigot
             paper
             purpur
