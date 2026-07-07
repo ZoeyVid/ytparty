@@ -31,6 +31,7 @@ public final class MusicPlayer {
     private Runnable onError = () -> {};
     private AudioTrack lastTrack;
     private volatile boolean decodeFinished;
+    private volatile long seekTarget = -1;
 
     public MusicPlayer() {
         manager.getConfiguration().setOutputFormat(FORMAT);
@@ -86,15 +87,20 @@ public final class MusicPlayer {
         });
     }
 
-    private void start(AudioTrack track, Consumer<String> onTitle) {
-        lastTrack = track;
+    private void begin(AudioTrack track) {
         decodeFinished = false;
+        seekTarget = -1;
         out.requestFlush();
         player.playTrack(track);
+    }
+
+    private void start(AudioTrack track, Consumer<String> onTitle) {
+        lastTrack = track;
+        begin(track);
         if (onTitle != null) onTitle.accept(track.getInfo().title);
     }
 
-    public void repeatCurrent() { if (lastTrack != null) { decodeFinished = false; out.requestFlush(); player.playTrack(lastTrack.makeClone()); } }
+    public void repeatCurrent() { if (lastTrack != null) begin(lastTrack.makeClone()); }
 
     private static AudioTrack pick(AudioPlaylist list) {
         return list.getSelectedTrack() != null ? list.getSelectedTrack() : list.getTracks().getFirst();
@@ -107,7 +113,7 @@ public final class MusicPlayer {
 
     public void setPosition(long ms) {
         AudioTrack t = player.getPlayingTrack();
-        if (t != null && t.isSeekable()) { t.setPosition(Math.max(0, Math.min(t.getDuration() - 1, ms))); out.requestFlush(); }
+        if (t != null && t.isSeekable()) { long p = Math.max(0, Math.min(t.getDuration() - 1, ms)); t.setPosition(p); seekTarget = p; out.requestFlush(); }
     }
 
     public long position() { AudioTrack t = player.getPlayingTrack(); return t != null ? Math.max(0, t.getPosition() - out.bufferedAhead()) : 0; }
@@ -126,7 +132,9 @@ public final class MusicPlayer {
         frame.setBuffer(ByteBuffer.wrap(buf));
         while (running) {
             boolean has = player.provide(frame);
-            out.pump(buf, has ? frame.getDataLength() : 0, has);
+            boolean stale = has && seekTarget >= 0 && Math.abs(frame.getTimecode() - seekTarget) > 60;
+            if (has && seekTarget >= 0 && !stale) seekTarget = -1;
+            out.pump(buf, has && !stale ? frame.getDataLength() : 0, has && !stale);
             if (decodeFinished && out.bufferedAhead() == 0) { decodeFinished = false; onEnd.run(); }
             if (!has) sleep();
         }
