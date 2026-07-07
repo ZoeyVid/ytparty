@@ -49,6 +49,7 @@ jobs:
             spigot
             paper
             purpur
+            folia
           game-versions: |
             26.2
           modrinth-id: ohwyynXQ
