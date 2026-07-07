@@ -6,13 +6,13 @@
 `crypto/hmac`, `crypto/sha256`, `crypto/rand`, `log/slog`, `net`, …). `go.mod` has no `require` entries → a plain
 `CGO_ENABLED=0 go build` yields a fully static binary.
 
-## Paper plugin
+## Bukkit plugin
 
 | Dependency | Version | Kind |
 |---|---|---|
-| `io.papermc.paper:paper-api` | `26.2.build.+` | **provided** (supplied by the server, not bundled) |
+| `org.bukkit:bukkit` | `1.8-R0.1-SNAPSHOT` (Spigot repo) | **provided** (supplied by the server, not bundled) |
 
-No bundled libraries. The YAML config uses Bukkit's built-in parser (no extra library).
+No bundled libraries. The YAML config uses Bukkit's built-in parser (no extra library). Compiled against the Bukkit 1.8 API with a **JDK 8 toolchain**, so it loads on any Bukkit server from 1.8 upward — Spigot, Paper, Folia.
 
 ## Fabric mod
 
@@ -60,7 +60,7 @@ server classes (dedicated servers never play audio).
 
 | Tool | Version | For |
 |---|---|---|
-| JDK (Temurin) | 25 | mod + plugin |
+| JDK (Temurin) | mod: 25, plugin: 8 | mod + plugin |
 | Gradle (wrapper) | 9.6.1 | mod + plugin |
 | Fabric Loom | 1.17.13 | mod |
 | Gradle Shadow | 9.4.3 | mod (full bundle) |

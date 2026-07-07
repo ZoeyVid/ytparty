@@ -31,7 +31,7 @@ Several recent protocol additions are general-purpose and lower the cost of the 
 
 Effort is a rough T-shirt size. The biggest multiplier is whether a feature touches the **wire
 protocol** — a protocol change has to be made in *four* places that must stay byte-compatible (client
-mod, Paper plugin, Fabric server mod, Go relay), so "protocol = yes" roughly doubles the work of an
+mod, Bukkit plugin, Fabric server mod, Go relay), so "protocol = yes" roughly doubles the work of an
 otherwise client-only change.
 
 | Feature | Effort | Touches protocol? | Main cost |
@@ -107,7 +107,7 @@ one STATE) at the cost of one more op the four components must agree on; the STA
 ever shows the most recent action.
 
 **Effort: Low–Medium.** The display is trivial now that both the HUD and an in-GUI list pattern exist; the
-real cost is the protocol addition (kept byte-compatible across client mod, Paper plugin, Fabric server mod,
+real cost is the protocol addition (kept byte-compatible across client mod, Bukkit plugin, Fabric server mod,
 Go relay) and deciding which actions are worth logging — pause/resume/skip/seek/track-change, but probably
 not volume or per-client SponsorBlock, which are local-only.
 

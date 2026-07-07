@@ -7,7 +7,7 @@
 | Minecraft | 26.2 (Java 25, `year.drop.hotfix` scheme) |
 | Mappings | official Mojang mappings (Yarn is gone for 26.1) |
 | Fabric | Loom 1.17.13, Gradle 9.6.1, Loader 0.19.3, API `0.154.0+26.2` |
-| Paper | `io.papermc.paper:paper-api:26.2.build.+` |
+| Bukkit (plugin) | `org.bukkit:bukkit:1.8-R0.1-SNAPSHOT` (Java 8, Spigot repo) |
 | LavaPlayer | `dev.arbjerg:lavaplayer:2.2.7` (Maven Central) |
 | YouTube source | `dev.lavalink.youtube:common:1.18.1` (`https://maven.lavalink.dev/releases`) |
 | Relay | Go 1.26 (stdlib only) |
@@ -15,7 +15,7 @@
 
 ## Building
 
-Mod and plugin need **JDK 25**; the relay needs Go 1.26. The Gradle wrapper (9.6.1) is included.
+The mod needs **JDK 25**; the plugin builds with a **JDK 8** toolchain against the Bukkit 1.8 API; the relay needs Go 1.26. The Gradle wrapper (9.6.1) is included. (Gradle 9 itself needs JDK 17+ to run, so the plugin's CI installs JDK 8 for the toolchain plus JDK 25 to run Gradle — same 25 the mod uses.)
 
 ```
 cd mod    && ./gradlew shadowJar serverJar   # build/libs/ytparty-0.1.0-bundle.jar (~33 MB) + -server.jar (~21 KB)
@@ -42,7 +42,7 @@ Both load through the same `YtPartyMain` entrypoint; the server jar just leaves 
 
 ## Configuration
 
-Only the relay is configurable (environment variables); Paper plugin and Fabric server mod have no
+Only the relay is configurable (environment variables); Bukkit plugin and Fabric server mod have no
 config — party defaults are hardcoded (private, public-join level `listen`) and changed per party
 in-game. **No JSON anywhere.** Every option with its default and meaning is in
 [`CONFIGURATION.md`](CONFIGURATION.md).
@@ -159,7 +159,7 @@ Not implemented — candidates for later:
   `dev.lavalink.youtube`. On breakage: rebuild with an updated `common` version. `403` / "This video
   requires login" mostly hits server IPs; on a residential IP the WEB client usually works. If it
   persists: OAuth/PoToken for the youtube-source.
-- **`plugin.yml api-version`** is `26.2`; adjust if your Paper build rejects it.
+- **`plugin.yml api-version`** is `1.13` (the oldest value the field supports — it was introduced in 1.13). The plugin compiles against the Bukkit 1.8 API but runs on 1.13+ because the sync channel `ytparty:sync` is a namespaced channel; on older servers `api-version` is simply ignored.
 
 ## LavaPlayer alternatives (evaluated)
 

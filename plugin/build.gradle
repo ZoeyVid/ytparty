@@ -6,16 +6,16 @@ group = project.group
 version = project.version
 
 java {
-    toolchain { languageVersion = JavaLanguageVersion.of(25) }
+    toolchain { languageVersion = JavaLanguageVersion.of(8) }
 }
 
 repositories {
     mavenCentral()
-    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
 }
 
 dependencies {
-    compileOnly "io.papermc.paper:paper-api:${project.paper_api}"
+    compileOnly 'org.bukkit:bukkit:1.8-R0.1-SNAPSHOT'
 }
 
 processResources {

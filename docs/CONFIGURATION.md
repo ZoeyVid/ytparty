@@ -2,7 +2,7 @@
 
 Only the relay is configurable. The client mod needs no manual setup — host/port/password for the
 relay are entered in the in-game **Relay** screen and then saved automatically (see the client
-section below). The Paper plugin and the Fabric server mod need no configuration at all: new
+section below). The Bukkit plugin and the Fabric server mod need no configuration at all: new
 parties always start **private**, and joiners of a party made public get the **`listen`** level —
 managers change both per party in-game.
 

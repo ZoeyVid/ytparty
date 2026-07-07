@@ -48,10 +48,21 @@ public final class ServerProtocol {
 
     private ServerProtocol() {}
 
-    public record StateTemplate(byte[] bytes, int levelOffset) {}
+    public static final class StateTemplate {
+        private final byte[] bytes;
+        private final int levelOffset;
+        public StateTemplate(byte[] bytes, int levelOffset) { this.bytes = bytes; this.levelOffset = levelOffset; }
+        public byte[] bytes() { return bytes; }
+        public int levelOffset() { return levelOffset; }
+    }
 
     public static StateTemplate stateTemplate(Party party) {
-        record Member(String name, PermissionLevel level) {}
+        class Member {
+            final String name; final PermissionLevel level;
+            Member(String name, PermissionLevel level) { this.name = name; this.level = level; }
+            String name() { return name; }
+            PermissionLevel level() { return level; }
+        }
         List<Member> members = new ArrayList<>(party.members.size());
         for (Map.Entry<UUID, PermissionLevel> e : party.members.entrySet()) members.add(new Member(name(e.getKey()), e.getValue()));
         members.sort(Comparator.comparingInt((Member m) -> -m.level().id()).thenComparing(m -> m.name().toLowerCase(Locale.ROOT)));

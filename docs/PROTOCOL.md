@@ -1,6 +1,6 @@
 # Wire protocol & permissions
 
-All three backends (Paper plugin, Fabric server mod, relay) speak the **same** byte protocol, so the
+All three backends (Bukkit plugin, Fabric server mod, relay) speak the **same** byte protocol, so the
 client mod drives them identically. Over the Minecraft channel it is `ytparty:sync` (raw bytes via
 `DataOutputStream`); on the relay the same payload is wrapped in an encrypted frame (see
 [`SECURITY.md`](SECURITY.md)).

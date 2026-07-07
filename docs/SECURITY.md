@@ -10,7 +10,7 @@ holding the PSK may take part.
 
 | Backend | Transport | Encryption |
 |---|---|---|
-| Paper plugin | MC custom channel | rides Minecraft's game connection (AES in online mode) |
+| Bukkit plugin | MC custom channel | rides Minecraft's game connection (AES in online mode) |
 | Fabric server mod | MC custom channel | same |
 | Relay | own TCP socket | **its own** layer (below) — Minecraft does *not* cover this socket |
 

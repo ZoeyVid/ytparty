@@ -96,14 +96,14 @@ public final class ChannelBridge implements PluginMessageListener {
             try (DataInputStream d = new DataInputStream(new ByteArrayInputStream(message))) {
                 byte op = d.readByte();
                 switch (op) {
-                    case ServerProtocol.C2S_CREATE -> create(player);
-                    case ServerProtocol.C2S_JOIN -> join(player, d.readUTF());
-                    case ServerProtocol.C2S_LEAVE -> leave(player, d.available() > 0 ? d.readUTF() : "");
-                    case ServerProtocol.C2S_INVITE -> handleInvite(player, d.readUTF(), d.readByte());
-                    case ServerProtocol.C2S_SET_LEVEL -> handleSetLevel(player, d.readUTF(), d.readByte());
-                    case ServerProtocol.C2S_SET_PUBLIC -> handleSetPublic(player, d.readBoolean(), d.readByte());
-                    case ServerProtocol.C2S_LIST_PUBLIC -> send(player, ServerProtocol.publicList(manager.publicParties()));
-                    default -> handleControlOp(player, op, d);
+                    case ServerProtocol.C2S_CREATE: create(player); break;
+                    case ServerProtocol.C2S_JOIN: join(player, d.readUTF()); break;
+                    case ServerProtocol.C2S_LEAVE: leave(player, d.available() > 0 ? d.readUTF() : ""); break;
+                    case ServerProtocol.C2S_INVITE: handleInvite(player, d.readUTF(), d.readByte()); break;
+                    case ServerProtocol.C2S_SET_LEVEL: handleSetLevel(player, d.readUTF(), d.readByte()); break;
+                    case ServerProtocol.C2S_SET_PUBLIC: handleSetPublic(player, d.readBoolean(), d.readByte()); break;
+                    case ServerProtocol.C2S_LIST_PUBLIC: send(player, ServerProtocol.publicList(manager.publicParties())); break;
+                    default: handleControlOp(player, op, d);
                 }
             } catch (IOException ignored) {}
         }
@@ -142,22 +142,24 @@ public final class ChannelBridge implements PluginMessageListener {
         int oldCur = p.curTrackId();
         int genBefore = p.generation;
         switch (op) {
-            case ServerProtocol.C2S_ADD -> {
+            case ServerProtocol.C2S_ADD: {
                 String uri = d.readUTF();
                 String title = cap(d.readUTF(), 200);
                 if (uri.isEmpty() || uri.length() > 1000 || p.tracks.size() >= 500) return;
                 p.tracks.add(new Party.TrackRef(p.nextTrackId++, uri, title, player.getName()));
                 if (p.currentIndex < 0) p.currentIndex = 0;
+                break;
             }
-            case ServerProtocol.C2S_REMOVE -> {
+            case ServerProtocol.C2S_REMOVE: {
                 int i = p.indexOf(d.readInt());
                 if (i >= 0) {
                     p.tracks.remove(i);
                     if (i < p.currentIndex) p.currentIndex--;
                     if (p.currentIndex >= p.tracks.size()) p.currentIndex = p.tracks.size() - 1;
                 }
+                break;
             }
-            case ServerProtocol.C2S_MOVE -> {
+            case ServerProtocol.C2S_MOVE: {
                 int from = p.indexOf(d.readInt()), to = d.readInt();
                 if (from >= 0) {
                     to = Math.max(0, Math.min(to, p.tracks.size() - 1));
@@ -166,14 +168,16 @@ public final class ChannelBridge implements PluginMessageListener {
                     else if (from < p.currentIndex && to >= p.currentIndex) p.currentIndex--;
                     else if (from > p.currentIndex && to <= p.currentIndex) p.currentIndex++;
                 }
+                break;
             }
-            case ServerProtocol.C2S_SET_TRACK -> {
+            case ServerProtocol.C2S_SET_TRACK: {
                 int i = p.indexOf(d.readInt());
                 if (i < 0) return;
                 p.currentIndex = i;
                 p.paused = false;
+                break;
             }
-            case ServerProtocol.C2S_TRACK_ENDED -> {
+            case ServerProtocol.C2S_TRACK_ENDED: {
                 int gen = d.readInt();
                 if (gen != p.generation || p.currentIndex < 0) return;
                 if (p.repeatOne || (!p.autoRemovePlayed && p.tracks.size() == 1)) p.generation++;
@@ -183,8 +187,9 @@ public final class ChannelBridge implements PluginMessageListener {
                     p.currentIndex = Math.min(cur, p.tracks.size() - 1);
                 } else if (!p.tracks.isEmpty()) p.currentIndex = (p.currentIndex + 1) % p.tracks.size();
                 else p.currentIndex = -1;
+                break;
             }
-            case ServerProtocol.C2S_SET_PLAYLIST -> {
+            case ServerProtocol.C2S_SET_PLAYLIST: {
                 int n = d.readInt();
                 if (n < 0 || n > 500) return;
                 List<Party.TrackRef> nt = new ArrayList<>();
@@ -198,25 +203,27 @@ public final class ChannelBridge implements PluginMessageListener {
                 p.tracks.addAll(nt);
                 p.currentIndex = p.tracks.isEmpty() ? -1 : 0;
                 p.paused = false;
+                break;
             }
-            case ServerProtocol.C2S_SET_PAUSED -> {
+            case ServerProtocol.C2S_SET_PAUSED: {
                 boolean v = d.readBoolean();
                 if (v && !p.paused) p.pausedSince = System.currentTimeMillis();
                 else if (!v && p.paused) { p.pausedAccum += System.currentTimeMillis() - p.pausedSince; p.pausedSince = 0; }
                 p.paused = v;
+                break;
             }
-            case ServerProtocol.C2S_SET_AUTOREMOVE -> p.autoRemovePlayed = d.readBoolean();
-            case ServerProtocol.C2S_SET_SPONSORBLOCK -> p.sbFlags = (byte) (d.readByte() & 0x0F);
-            case ServerProtocol.C2S_SET_REPEAT -> p.repeatOne = d.readBoolean();
-            case ServerProtocol.C2S_SET_POSITION -> {
+            case ServerProtocol.C2S_SET_AUTOREMOVE: p.autoRemovePlayed = d.readBoolean(); break;
+            case ServerProtocol.C2S_SET_SPONSORBLOCK: p.sbFlags = (byte) (d.readByte() & 0x0F); break;
+            case ServerProtocol.C2S_SET_REPEAT: p.repeatOne = d.readBoolean(); break;
+            case ServerProtocol.C2S_SET_POSITION: {
                 long ms = d.readLong();
                 p.generation++;
                 p.anchor(ms);
                 for (UUID m : p.members.keySet()) { Player pl = Bukkit.getPlayer(m); if (pl != null) send(pl, ServerProtocol.seek(ms, p.generation)); }
                 return;
             }
-            case ServerProtocol.C2S_REANCHOR -> { int gen = d.readInt(); long pos = d.readLong(); if (gen == p.generation && pos > p.elapsed()) p.anchor(pos); return; }
-            default -> { return; }
+            case ServerProtocol.C2S_REANCHOR: { int gen = d.readInt(); long pos = d.readLong(); if (gen == p.generation && pos > p.elapsed()) p.anchor(pos); return; }
+            default: return;
         }
         if (p.curTrackId() != oldCur) p.generation++;
         if (p.generation != genBefore) p.anchor(0);

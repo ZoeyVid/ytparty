@@ -10,7 +10,13 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class PartyManager {
-    public record LeaveResult(Party party, boolean disbanded) {}
+    public static final class LeaveResult {
+        private final Party party;
+        private final boolean disbanded;
+        public LeaveResult(Party party, boolean disbanded) { this.party = party; this.disbanded = disbanded; }
+        public Party party() { return party; }
+        public boolean disbanded() { return disbanded; }
+    }
 
     private final Map<String, Party> byId = new HashMap<>();
     private final Map<UUID, String> playerToParty = new HashMap<>();

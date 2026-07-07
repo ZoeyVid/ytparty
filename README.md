@@ -94,7 +94,7 @@ search box for many players).
 | Backend | Install | Configuration |
 |---|---|---|
 | Fabric server | the **same `…-bundle.jar`** *or* the slim **`…-server.jar`** in `mods/` + Fabric API | none |
-| Paper plugin | `ytparty-plugin-….jar` in `plugins/` | none |
+| Bukkit plugin | `ytparty-plugin-….jar` in `plugins/` (Spigot / Paper / Folia, 1.13+) | none |
 | Relay | run the binary **or** Docker/Compose | environment only |
 
 All options (with defaults and meaning) are in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).

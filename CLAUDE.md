@@ -30,7 +30,7 @@ docs and identifiers are written in English.
 
 ## Build & run
 
-Toolchain: **JDK 25** (records, `Math.clamp`, ML-KEM via SunJCE), **Gradle 9.6.1**, **Go 1.26+**
+Toolchain: **JDK 25** for mod + relay-side crypto (records, `Math.clamp`, ML-KEM via SunJCE); the **plugin builds with a JDK 8 toolchain** (Bukkit 1.8 API). **Gradle 9.6.1**, **Go 1.26+**
 (stdlib `crypto/ecdh` + `crypto/mlkem`).
 
 ```sh
@@ -60,7 +60,7 @@ and pass `-Dorg.gradle.java.installations.paths=$JAVA_HOME`. Not needed on a nor
 
 - **26.1 is fully unobfuscated** (official Mojang names). The mod's `build.gradle` must **not** set
   `mappings loom.officialMojangMappings()`. Loom 1.17.13, Loader 0.19.3, Fabric API
-  `0.154.0+26.2`, Shadow 9.4.3. Paper: `io.papermc.paper:paper-api:26.2.build.+`.
+  `0.154.0+26.2`, Shadow 9.4.3. Plugin: `org.bukkit:bukkit:1.8-R0.1-SNAPSHOT` (JDK 8 toolchain), `api-version: 1.13`.
 - **`GuiGraphics` does not exist in 26.1.** Screens use the extracted render-state pipeline
   (`extractRenderState(GuiGraphicsExtractor,…)`), so you cannot draw custom primitives the old way.
   **Stick to widgets** (`StringWidget`, `Button`, `EditBox`, `AbstractSliderButton` via

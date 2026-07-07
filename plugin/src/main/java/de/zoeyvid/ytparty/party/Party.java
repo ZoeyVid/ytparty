@@ -8,7 +8,15 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class Party {
-    public record TrackRef(int id, String uri, String title, String requester) {}
+    public static final class TrackRef {
+        private final int id;
+        private final String uri, title, requester;
+        public TrackRef(int id, String uri, String title, String requester) { this.id = id; this.uri = uri; this.title = title; this.requester = requester; }
+        public int id() { return id; }
+        public String uri() { return uri; }
+        public String title() { return title; }
+        public String requester() { return requester; }
+    }
 
     public final String id;
     public final Map<UUID, PermissionLevel> members = new LinkedHashMap<>();
