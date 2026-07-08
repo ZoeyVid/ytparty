@@ -34,11 +34,11 @@ from singleplayer or from any server, as long as both connect to the **same** re
 password). A **singleplayer** world is private to you (a party of one). Local playback always works
 everywhere; only the *sync* needs a backend.
 
-| Person A ↓ \\ B → | Singleplayer (no relay) | Same server X (plugin/mod) | Different server Y | Server without backend | On the same relay |
+| Person A ↓ \\ B → | Singleplayer (no relay) | Server X (plugin/mod) | Server Y (plugin/mod) | Server without backend | On the same relay |
 |---|:--:|:--:|:--:|:--:|:--:|
 | **Singleplayer (no relay)** | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **Same server X (plugin/mod)** | ✗ | ✓ *(server X)* | ✗ | ✗ | ✗ |
-| **Different server Y** | ✗ | ✗ | ✓ *(server Y)* | ✗ | ✗ |
+| **Server X (plugin/mod)** | ✗ | ✓ *(server X)* | ✗ | ✗ | ✗ |
+| **Server Y (plugin/mod)** | ✗ | ✗ | ✓ *(server Y)* | ✗ | ✗ |
 | **Server without backend** | ✗ | ✗ | ✗ | ✗ | ✗ |
 | **On the same relay** | ✗ | ✗ | ✗ | ✗ | ✓ *(relay)* |
 
