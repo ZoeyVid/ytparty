@@ -5,7 +5,7 @@
     "name": "YT Party (Server)",
     "description": "Server-side party sync for YT Party. No audio libraries — dedicated servers never play audio.",
     "authors": ["Zoey"],
-    "license": "Unlicense",
+    "license": "AGPL-3.0-or-later",
     "environment": "server",
     "entrypoints": {
         "main": ["de.zoeyvid.ytparty.YtPartyMain"]
