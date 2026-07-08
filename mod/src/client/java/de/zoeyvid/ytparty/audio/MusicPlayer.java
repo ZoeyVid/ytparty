@@ -56,9 +56,9 @@ public final class MusicPlayer {
         manager.loadItem(identifier, new AudioLoadResultHandler() {
             public void trackLoaded(AudioTrack track) { onDone.accept(List.<String[]>of(new String[]{identifier, track.getInfo().title})); }
             public void playlistLoaded(AudioPlaylist list) {
-                List<String[]> tracks = new ArrayList<>();
-                for (AudioTrack t : list.getTracks()) tracks.add(new String[]{t.getInfo().uri, t.getInfo().title});
-                onDone.accept(tracks);
+                if (list.getTracks().isEmpty()) { onDone.accept(List.of()); return; }
+                AudioTrack first = list.getTracks().getFirst();
+                onDone.accept(List.<String[]>of(new String[]{first.getInfo().uri, first.getInfo().title}));
             }
             public void noMatches() { onDone.accept(List.of()); }
             public void loadFailed(FriendlyException e) { onDone.accept(List.of()); }

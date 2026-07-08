@@ -1,167 +1,80 @@
-# CLAUDE.md — context for AI coding sessions
+# CLAUDE.md — working notes
 
-Guidance for an AI agent (Claude Code or similar) working in this repo. If your tool reads
-`AGENTS.md` instead, point it here (same content). Read this first.
+Context for anyone (human or AI) picking up this repo. Keep it about **architecture and invariants**;
+concrete versions live in the build files, not here, so they don't rot.
 
 > This project is **deliberately vibecoded** (built end-to-end by Claude Opus 4.8). It is the owner's
 > only such repo — every other project of theirs is hand-written and AI-free. Keep the bar high.
 
-## What this is
+## What it is
 
-YouTube audio in **Minecraft 26.2** with synchronized listening "parties". A client-side **Fabric mod**
-fetches/decodes/plays YouTube audio itself (LavaPlayer → OpenAL) and keeps playlist order, current
-track and pause state in sync per party. It is **fully standalone** (works solo with no backend) and
-driven entirely through the GUI (key **J**, plus a button on the title screen).
+Synchronised YouTube listening in Minecraft. A Fabric **client mod** does the UI and the audio
+(extract → decode with lavaplayer → OpenAL). Party state lives in a **backend**; there are three
+interchangeable ones that all run the *same* logic:
 
-Three backends speak the **same byte wire protocol** so the client drives them identically:
+- **relay** — standalone Go server, end‑to‑end encrypted, works across arbitrary servers
+- **server mod** — the client jar's server side, for a Fabric server
+- **plugin** — Bukkit plugin for Spigot / Paper / Folia
 
-| Part | Path | Role |
-|---|---|---|
-| Mod | `mod/` | One source tree → **two jars**: a client+server *bundle* and a slim *server-only* jar. Package `de.zoeyvid.ytparty` (server logic) / `…ytparty` client classes under `src/client`. |
-| Plugin | `plugin/` | Paper counterpart of the server side. Package `de.zoeyvid.ytparty`. |
-| Relay | `relay/` | Standalone Go server for cross-server parties; **hybrid post-quantum encrypted**. Module `zoeyvid.de/ytparty-relay`. |
+**Solo mode** is not a special case: the client runs an in‑process party (`LocalSink`) that goes
+through the exact same logic, so solo and networked behave identically.
 
-Channel id `ytparty:sync`. Docs live in `docs/` and are **always written in English**.
+## Layout
 
-## Conventions
+- `mod/` — Fabric mod, split source sets: `src/client` (UI, audio, relay client) and `src/main`
+  (server‑side party). `src/main/.../common/` (`Control`, `Opcodes`) is the shared brain used by the
+  server mod **and** — compiled in — by the client's solo sink.
+- `plugin/` — Bukkit plugin (pure `org.bukkit.*`, no Paper/Spigot API). Targets Java 8 + the Bukkit
+  1.8 API so it loads on anything from 1.8 to current.
+- `relay/` — Go, standard library only, shipped as a multi‑arch Docker image.
 
-When changing code, match the conventions of the existing files (style, structure, naming). Repository
-docs and identifiers are written in English.
+## The one hard part: the sync model
 
-## Build & run
+Position is not sent as a clock; it's an **anchor**. Each party stores an epoch/offset (`anchor`,
+`elapsed`) plus a **generation** counter. Managers mutate state via ops; the backend re‑broadcasts a
+`STATE` (and a `SEEK` carrying `generation` on position changes). Joiners re‑anchor to the party only
+when the incoming generation matches **and** the position moves monotonically forward — this prevents
+the stutter/rewind that a naïve last‑write‑wins would cause when several managers race. Repeat and
+track‑end reuse the generation bump so a looped track re‑anchors cleanly.
 
-Toolchain: **JDK 25** for mod + relay-side crypto (records, `Math.clamp`, ML-KEM via SunJCE); the **plugin builds with a JDK 8 toolchain** (Bukkit 1.8 API). **Gradle 9.6.1**, **Go 1.26+**
-(stdlib `crypto/ecdh` + `crypto/mlkem`).
+## The protocol
 
-```sh
-# Mod — both jars (bundle + slim server)
-cd mod && gradle clean shadowJar serverJar
-#   → build/libs/ytparty-0.1.0-bundle.jar   (client+server+LavaPlayer+natives, ~34 MB)
-#   → build/libs/ytparty-0.1.0-server.jar   (server only, no audio libs, ~21 KB)
+One length‑prefixed binary channel (`ytparty:sync`). Opcodes are the single source of truth in
+`common/Opcodes.java` (C2S 0–19, S2C 0–6). **`Control.apply` is shared** by all three backends, so a
+new *behaviour* is almost always client‑side interpretation over existing ops — you rarely add an
+opcode, and if you do it must land in all three. See [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
 
-# Plugin
-cd plugin && gradle clean build            # → build/libs/ytparty-plugin-0.1.0.jar
+## Concurrency
 
-# Relay — static, stripped, cross-compiled
-cd relay && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ytparty-relay-linux-amd64 .
-cd relay && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o ytparty-relay-linux-arm64 .
-gofmt -l relay/ && go vet ./relay/...       # keep clean
-```
+Vanilla/Fabric and normal Bukkit are single‑threaded, so the server mod and plugin use plain maps.
+**Folia** is the exception (real region‑thread parallelism): the plugin guards its shared state with a
+single lock and declares `folia-supported`. The relay has its own mutex. `sendPluginMessage`/packet
+sends are connection I/O and safe from any thread (verified against Folia's source — no tick‑thread
+guard on messaging).
 
-Relay needs a PSK or it refuses to start:
-`YTPARTY_RELAY_PASSWORD='…' ./ytparty-relay-linux-amd64` (printable ASCII only). Other env vars are in
-`docs/CONFIGURATION.md`. CI is `.github/workflows/build.yml`.
+## Crypto (relay only)
 
-**Sandbox note:** behind a TLS-intercepting egress proxy, Gradle needs the system truststore:
+PSK‑authenticated hybrid handshake: PBKDF2‑HMAC‑SHA256 over the shared password, mixed with an X25519
+**and** an ML‑KEM (post‑quantum) exchange via HMAC‑SHA256 into a session key; traffic is AES‑256‑GCM
+with directional, counter‑based nonces. Forward‑secret and replay‑safe. The Java and Go sides are
+byte‑compatible. Details in [`docs/SECURITY.md`](docs/SECURITY.md).
+
+## Building
+
+Per‑component; versions are pinned in the build files (see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)),
+not duplicated here. Mod and plugin use Gradle wrappers; the relay is `go build` / Docker.
+
+**Sandbox note:** behind a TLS‑intercepting egress proxy Gradle needs the system truststore —
 `export JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStorePassword=changeit"`
-and pass `-Dorg.gradle.java.installations.paths=$JAVA_HOME`. Not needed on a normal network / in CI.
+and pass `-Dorg.gradle.java.installations.paths=<jdk>`. Not needed on a normal network or in CI.
 
-## Minecraft 26.1 / Fabric gotchas (hard-won — verify with `javap` before trusting memory)
+## Minecraft/Fabric gotchas (verify with `javap` before trusting memory)
 
-- **26.1 is fully unobfuscated** (official Mojang names). The mod's `build.gradle` must **not** set
-  `mappings loom.officialMojangMappings()`. Loom 1.17.13, Loader 0.19.3, Fabric API
-  `0.154.0+26.2`, Shadow 9.4.3. Plugin: `org.bukkit:bukkit:1.8-R0.1-SNAPSHOT` (JDK 8 toolchain), `api-version: 1.13`.
-- **`GuiGraphics` does not exist in 26.1.** Screens use the extracted render-state pipeline
-  (`extractRenderState(GuiGraphicsExtractor,…)`), so you cannot draw custom primitives the old way.
-  **Stick to widgets** (`StringWidget`, `Button`, `EditBox`, `AbstractSliderButton` via
-  `addRenderableWidget`). Drag-and-drop in `PlaylistScreen` is implemented widget-only with a live
-  preview, not custom rendering.
-- **Mouse events use `MouseButtonEvent`** (a record: `.x()`, `.y()`, `.button()` 0=left, `.modifiers()`).
-  Screen overrides: `mouseClicked(MouseButtonEvent, boolean)`, `mouseReleased(MouseButtonEvent)`,
-  `mouseDragged(MouseButtonEvent, double dx, double dy)`, `mouseScrolled(double,double,double,double)`.
-- `ServerPlayer` has **no `getServer()`** — get `MinecraftServer` via `ServerLifecycleEvents.SERVER_STARTED`.
-- `GameProfile` is a **record** (`.name()`, not `.getName()`). Client identity:
-  `Minecraft.getInstance().getUser().getName()` / `.getProfileId()`. Names: `getName().getString()`.
-- `Identifier` (not `ResourceLocation`); `sendSystemMessage` (not `displayClientMessage`);
-  `KeyMapping.Category.MISC`; payloads via `PayloadTypeRegistry.serverboundPlay()/clientboundPlay()`.
-- `Minecraft.hasSingleplayerServer()` distinguishes integrated vs dedicated (used by the audio-stop rule).
-- Title-screen button: Fabric `ScreenEvents.AFTER_INIT` + `Screens.getWidgets(screen)` when
-  `screen instanceof TitleScreen`.
-
-## Wire protocol (see `docs/PROTOCOL.md` for the full table)
-
-Raw `DataOutputStream` bytes on `ytparty:sync`; the relay wraps the *same* payload in an encrypted
-frame with a 4-byte big-endian length prefix. C2S ops 0–18 (8 = `SET_TRACK`, 12 = `SET_AUTOREMOVE`,
-13 = `LIST_PUBLIC`, 14 = *(reserved)*, 15 = `SET_SPONSORBLOCK`, 16 = `SET_REPEAT`,
-17 = `TRACK_ENDED`, 18 = `SET_PLAYLIST`); S2C 0–5 (0 = `STATE`, 5 = `PUBLIC_LIST`). `STATE` carries (after
-`currentIndex`) `autoRemovePlayed`, `sponsorBlockFlags` (byte), `repeatOne` (bool) and a monotonic
-`generation` (int), then per track an `id` (int) + three UTF strings (`uri`, `title`, `requester` — backend
-assigns the id and fills requester from the sender on ADD, never sent by the client), and per member just
-`name` + `level`. `PUBLIC_LIST` is relay-only; the MC backends ignore op 13. Levels: 0 LISTEN, 1 INVITE,
-2 MANAGE. Volume, looping and SponsorBlock skipping are client-local; the backend is the source of truth for
-everything else.
-
-**`SET_PLAYLIST`** (op 18) replaces the whole playlist in one frame (backend assigns fresh ids + requester);
-the client uses it for the solo→party carry-over (`CREATE` then one `SET_PLAYLIST`) instead of N `ADD`s, so
-import is a single message and the per-connection message rate limit could be tightened (burst 16, refill
-4/s).
-
-**One identity per party:** a UUID or username can be in a party only once — the relay refuses a `JOIN` whose
-UUID/username already belongs to a member (the same identity may still hold several relay connections, just
-not sit in one party twice). The MC backends use authenticated UUIDs (one player = one connection) so this is
-automatic there. There is no longer a `duplicate` flag in STATE.
-
-**Stable track IDs:** `REMOVE`, `MOVE` and `SET_TRACK` reference a backend-assigned per-track id, not a
-list index, so concurrent manager edits (or an edit racing an auto-remove) never hit the wrong track. The
-client maps id ↔ row; `SET_TRACK` with an unknown id is ignored.
-
-**Advance vs skip:** a track ending naturally is `TRACK_ENDED` (backend advances and applies `autoRemove`
-— it decides deletion from its own config, no flag is sent); a manual skip/previous/row-click is
-`SET_TRACK` and never deletes. The trigger is detected locally but the mutation goes through the backend so
-the shared list stays correct for late joiners.
-
-**Generation:** bumped whenever the *current track's identity* changes (`SET_TRACK` to another track,
-`TRACK_ENDED`, removal of the current track — not a `MOVE` of it). `TRACK_ENDED` carries it; the backend acts
-only on a matching generation, which de-duplicates several managers' staggered track-ends.
-
-**Repeat & SponsorBlock are local:** `SET_REPEAT`/`SET_SPONSORBLOCK` only sync the setting; each client
-loops (clone-replay) or skips segments by changing its own position, which is safe because it never touches
-the shared list.
-
-**Position sync (boundaries only):** there is no continuous drift correction. Clients re-align at track
-boundaries (everyone restarts the new track at 0 via STATE), on pause/resume (`paused` in STATE), and on a
-manual `SET_POSITION` (backend broadcasts one absolute `SEEK` to all; each applies it directly, no tolerance). Within a
-track a per-client load-latency offset (sub-second) persists until the next boundary. The old server-side
-median (`REPORT_POSITION` every 5 s → `SEEK`) was removed — it fought managers' own local jumps (e.g.
-SponsorBlock skips) with round-trip-delayed corrections and oscillated.
-
-**Relay-only** identity frame: `blob(name) ‖ blob(uuid) ‖ blob(token)` (each blob = u16 len + bytes);
-ack = `{1} ‖ blob(token)`. First connect sends an empty token, relay issues one (TOFU, RAM-only,
-expires). The token is **not persisted to disk on the client** — it lives in RAM only and is lost on
-restart; the client then presents an empty token and the relay issues a new one. Relay keys *all*
-state by **token**, not UUID, so distinct connections stay distinct even with the same claimed UUID; a
-second connection whose identity is already in a party is refused entry to *that* party (one identity per
-party) but may join elsewhere.
-A new connection with an existing live token **replaces** it and keeps membership; a genuine
-disconnect leaves the party.
-
-## Crypto (relay only — see `docs/SECURITY.md`)
-
-Hand-assembled from stdlib primitives — **not** TLS. Per connection: ephemeral **X25519 + ML-KEM-768**
-hybrid KEM; the PBKDF2-derived PSK is also mixed into the session key, so a wrong PSK fails the GCM
-tag. The relay derives the PSK key with Go's stdlib `crypto/pbkdf2`; the mod hand-rolls the same
-PBKDF2-HMAC-SHA256 (JDK's built-in would re-encode the password and diverge) — both yield identical
-bytes for ASCII PSKs. AES-256-GCM, 12-byte nonce `[dir|000|ctr8BE]`, direction-separated counters.
-Forward-secret, replay-safe. Interop is byte-for-byte Java 25 ↔ Go 1.26. **PSK must be printable ASCII**
-(Java Latin-1 vs Go UTF-8 would diverge), enforced on both ends.
-
-## Permissions (enforced server-side on all three backends)
-
-LISTEN / INVITE / MANAGE. A party lives as long as ≥1 member has MANAGE; when the last manager leaves
-it disbands and everyone else gets `LEFT`. Invites cap the granted level to the inviter's own. A manager
-**kicks** by sending `LEAVE` with the target's name (empty payload = leave yourself) — reuses the disband
-path, no extra op. Public
-parties: a manager toggles public + the join level. Random unguessable party ids. `ADD` caps:
-≤500 tracks, uri ≤1000, title ≤200. The client UI only shows/hides controls accordingly.
-
-## Status
-
-Everything in the current scope is implemented across all backends and builds. Deferred features (with
-effort estimates) are in `docs/PLANNED.md`. When adding anything that touches the wire format,
-change it in **all four** places (client mod, plugin, server mod, relay) and keep them byte-compatible.
-
-## Things that can't be runtime-tested in a headless sandbox
-
-Audio playback, the GUI (incl. drag-and-drop), the title-screen button, client persistence
-(`config/ytparty-client.properties`), and the audio-stop-on-disconnect rule need a real client with a
-sound device. Verify logic by reading the code; the owner tests these in-game.
+- Minecraft has been **unobfuscated since 26.1** (1.21.11 was the last obfuscated version) — official
+  Mojang names throughout — so the mod's `build.gradle` must **not** set
+  `mappings loom.officialMojangMappings()`, and there are no Yarn mappings to add.
+- **No `GuiGraphics`** — screens go through the extracted render‑state pipeline. Draw with widgets
+  (`StringWidget`, `Button`, `EditBox`, `AbstractSliderButton` via `addRenderableWidget`), not custom
+  primitives; the playlist drag‑and‑drop is widget‑only with a live preview.
+- Mouse events are `MouseButtonEvent` (a record). Networking uses the payload API
+  (`serverboundPlay()`/`clientboundPlay()`), key binds use `KeyMappingHelper` + `KeyMapping.Category`.
