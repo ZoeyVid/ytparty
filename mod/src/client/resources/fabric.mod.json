@@ -5,7 +5,7 @@
     "name": "YT Party",
     "description": "YouTube audio player (client) with party sync. Same jar acts as the server-side host on a Fabric server.",
     "authors": ["Zoey"],
-    "license": "Unlicense",
+    "license": "AGPL-3.0-or-later",
     "environment": "*",
     "entrypoints": {
         "main": ["de.zoeyvid.ytparty.YtPartyMain"],
