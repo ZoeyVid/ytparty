@@ -1,7 +1,7 @@
 {
     "schemaVersion": 1,
     "id": "ytparty",
-    "version": "0.1.0",
+    "version": "${version}",
     "name": "YT Party (Server)",
     "description": "Server-side party sync for YT Party. No audio libraries — dedicated servers never play audio.",
     "authors": ["Zoey"],

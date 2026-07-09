@@ -22,9 +22,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
           cache-disabled: true
+      - id: date
+        run: echo "value=$(date +%Y-%m)-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
       - name: build jars
         working-directory: mod
-        run: ./gradlew shadowJar serverJar --no-daemon --stacktrace
+        run: ./gradlew shadowJar serverJar --no-daemon --stacktrace -PbuildVersion=${{ steps.date.outputs.value }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: mod/build/libs/*-bundle.jar
@@ -36,9 +38,7 @@ jobs:
           path: mod/build/libs/*-server.jar
           archive: false
           if-no-files-found: error
-      - id: date
-        if: github.ref_name == 'latest'
-        run: echo "value=$(date +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+          retention-days: 3
       - uses: Kir-Antipov/mc-publish@995edadc13559a8b28d0b7e6571229f067ec7659 # v3.3.0
         if: github.ref_name == 'latest'
         with:

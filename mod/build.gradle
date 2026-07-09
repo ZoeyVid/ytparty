@@ -3,9 +3,7 @@ plugins {
     id 'com.gradleup.shadow' version '9.5.1'
 }
 
-version = project.mod_version
-group = project.maven_group
-base { archivesName = project.archives_base_name }
+version = findProperty('buildVersion') ?: 'develop'
 
 java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
 
@@ -52,6 +50,11 @@ tasks.register('serverJar', Jar) {
     dependsOn classes
     archiveClassifier = 'server'
     from sourceSets.main.output
-    from('serverMeta') { into '/' }
+    from('serverMeta') { into '/'; expand version: version }
 }
 assemble.dependsOn serverJar
+
+tasks.named('processClientResources') {
+    inputs.property 'version', version
+    filesMatching('fabric.mod.json') { expand version: version }
+}

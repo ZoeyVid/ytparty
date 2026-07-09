@@ -2,8 +2,7 @@ plugins {
     id 'java'
 }
 
-group = project.group
-version = project.version
+version = findProperty('buildVersion') ?: 'develop'
 
 java {
     toolchain { languageVersion = JavaLanguageVersion.of(8) }
@@ -19,7 +18,6 @@ dependencies {
 }
 
 processResources {
-    def props = [version: project.version]
-    inputs.properties props
-    filesMatching('plugin.yml') { expand props }
+    inputs.property 'version', version
+    filesMatching('plugin.yml') { expand version: version }
 }

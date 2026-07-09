@@ -6,4 +6,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'ytparty-mod'
+rootProject.name = 'ytparty'
