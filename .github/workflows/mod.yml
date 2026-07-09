@@ -1,6 +1,8 @@
 name: mod
 on:
   push:
+    branches:
+      - develop
     paths:
       - mod/**
       - .github/workflows/mod.yml
