@@ -8,6 +8,7 @@ services:
     network_mode: bridge
     ports:
       - "25599:25599"
+    read_only: true
     cap_drop:
       - ALL
     security_opt:
