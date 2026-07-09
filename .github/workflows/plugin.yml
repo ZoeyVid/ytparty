@@ -26,6 +26,7 @@ jobs:
         with:
           cache-disabled: true
       - name: date
+        id: date
         run: echo "value=$(date +%Y-%m-%d)-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
       - name: build
         working-directory: plugin
