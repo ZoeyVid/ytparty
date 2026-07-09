@@ -11,7 +11,6 @@ on:
   workflow_dispatch:
 jobs:
   plugin:
-    name: bukkit plugin
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -24,9 +23,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
           cache-disabled: true
-      - id: date
+      - name: date
         run: echo "value=$(date +%Y-%m-%d)-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-      - name: build jar
+      - name: build
         working-directory: plugin
         run: ./gradlew build --no-daemon --stacktrace -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64 -PbuildVersion=${{ steps.date.outputs.value }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
