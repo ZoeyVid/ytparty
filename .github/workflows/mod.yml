@@ -23,7 +23,7 @@ jobs:
         with:
           cache-disabled: true
       - id: date
-        run: echo "value=$(date +%Y-%m)-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+        run: echo "value=$(date +%Y-%m-%d)-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
       - name: build jars
         working-directory: mod
         run: ./gradlew shadowJar serverJar --no-daemon --stacktrace -PbuildVersion=${{ steps.date.outputs.value }}
@@ -45,7 +45,7 @@ jobs:
           version-type: release
           modrinth-featured: true
           github-prerelease: false
-          name: Mod
+          name: Mod ${{ steps.date.outputs.value }}
           version: mod-${{ steps.date.outputs.value }}
           github-tag: mod-${{ steps.date.outputs.value }}
           files: | 
