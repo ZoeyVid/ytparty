@@ -25,7 +25,7 @@ jobs:
         with:
           cache-disabled: true
       - id: date
-        run: echo "value=$(date +%Y-%m)-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+        run: echo "value=$(date +%Y-%m-%d)-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
       - name: build jar
         working-directory: plugin
         run: ./gradlew build --no-daemon --stacktrace -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64 -PbuildVersion=${{ steps.date.outputs.value }}
@@ -41,7 +41,7 @@ jobs:
           version-type: release
           modrinth-featured: true
           github-prerelease: false
-          name: Plugin
+          name: Plugin ${{ steps.date.outputs.value }}
           version: plugin-${{ steps.date.outputs.value }}
           github-tag: plugin-${{ steps.date.outputs.value }}
           files: plugin/build/libs/*.jar
