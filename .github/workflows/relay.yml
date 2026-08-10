@@ -11,6 +11,9 @@ on:
       - relay/**
       - .github/workflows/relay.yml
   workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
 jobs:
   relay:
     runs-on: ubuntu-latest

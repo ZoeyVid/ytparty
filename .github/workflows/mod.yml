@@ -11,6 +11,8 @@ on:
       - mod/**
       - .github/workflows/mod.yml
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   mod:
     runs-on: ubuntu-latest

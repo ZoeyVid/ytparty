@@ -11,6 +11,8 @@ on:
       - plugin/**
       - .github/workflows/plugin.yml
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   plugin:
     runs-on: ubuntu-latest
