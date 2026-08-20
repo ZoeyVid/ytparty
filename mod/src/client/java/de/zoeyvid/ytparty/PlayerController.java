@@ -93,7 +93,7 @@ public final class PlayerController {
     }
 
     private void sponsorBlockTick() {
-        if (paused || currentIndex < 0 || audio.duration() <= 0 || !segmentsUri.equals(loadedUri)) return;
+        if (paused || currentIndex < 0 || audio.duration() <= 0 || audio.seeking() || !segmentsUri.equals(loadedUri)) return;
         byte flags = hasParty() ? partySbFlags : ClientConfig.sbFlags();
         if ((flags & SponsorBlock.FLAG_ENABLED) == 0) return;
         long pos = audio.position();

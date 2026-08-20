@@ -139,6 +139,7 @@ public final class MusicPlayer {
 
     public void setPaused(boolean paused) { player.setPaused(paused); out.requestPause(paused); }
     public boolean isPaused() { return player.isPaused(); }
+    public boolean seeking() { return seekTarget >= 0; }
     public void stop() { decodeFinished = false; player.stopTrack(); out.requestFlush(); }
     public void setVolume(int v) { out.setGain(Math.clamp(v, 0, 200) / 100f); }
 
