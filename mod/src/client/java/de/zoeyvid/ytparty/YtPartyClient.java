@@ -23,8 +23,8 @@ public final class YtPartyClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        ClientSync.register();
         ClientConfig.load();
+        ClientSync.register();
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("ytparty", "now_playing"), new NowPlayingHud());
 
         KeyMapping open = KeyMappingHelper.registerKeyMapping(new KeyMapping(
