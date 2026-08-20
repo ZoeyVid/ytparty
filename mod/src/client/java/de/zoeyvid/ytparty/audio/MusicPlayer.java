@@ -13,6 +13,16 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
 import com.sedmelluq.discord.lavaplayer.track.playback.MutableAudioFrame;
 import dev.lavalink.youtube.YoutubeAudioSourceManager;
+import dev.lavalink.youtube.clients.Android;
+import dev.lavalink.youtube.clients.AndroidMusic;
+import dev.lavalink.youtube.clients.AndroidVr;
+import dev.lavalink.youtube.clients.Ios;
+import dev.lavalink.youtube.clients.MWeb;
+import dev.lavalink.youtube.clients.Music;
+import dev.lavalink.youtube.clients.Tv;
+import dev.lavalink.youtube.clients.TvHtml5Simply;
+import dev.lavalink.youtube.clients.Web;
+import dev.lavalink.youtube.clients.WebEmbedded;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -36,7 +46,7 @@ public final class MusicPlayer {
     public MusicPlayer() {
         manager.getConfiguration().setOutputFormat(FORMAT);
         manager.setFrameBufferDuration(1000);
-        manager.registerSourceManager(new YoutubeAudioSourceManager());
+        manager.registerSourceManager(new YoutubeAudioSourceManager(true, new Music(), new AndroidVr(), new Web(), new WebEmbedded(), new MWeb(), new TvHtml5Simply(), new AndroidMusic(), new Ios(), new Android(), new Tv()));
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
                 if (reason == AudioTrackEndReason.FINISHED) decodeFinished = true;
