@@ -100,6 +100,11 @@ func (r *relay) release(ip string) {
 }
 
 func (r *relay) handle(c net.Conn) {
+	defer func() {
+		if e := recover(); e != nil {
+			slog.Error("handle panic", "err", e)
+		}
+	}()
 	defer c.Close()
 	ip, ok := r.admit(c)
 	if !ok {
@@ -137,7 +142,10 @@ func (r *relay) handle(c net.Conn) {
 	if err := writeFrame(c, msg2); err != nil {
 		return
 	}
-	g := gcm(deriveSession(r.key, msg1, msg2, ssx, ssm))
+	g, err := gcm(deriveSession(r.key, msg1, msg2, ssx, ssm))
+	if err != nil {
+		return
+	}
 	encID, err := readFrame(c)
 	if err != nil {
 		return

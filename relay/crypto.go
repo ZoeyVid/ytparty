@@ -39,8 +39,10 @@ func nonce(dir byte, ctr uint64) []byte {
 	return n
 }
 
-func gcm(sk []byte) cipher.AEAD {
-	blk, _ := aes.NewCipher(sk)
-	g, _ := cipher.NewGCM(blk)
-	return g
+func gcm(sk []byte) (cipher.AEAD, error) {
+	blk, err := aes.NewCipher(sk)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(blk)
 }
