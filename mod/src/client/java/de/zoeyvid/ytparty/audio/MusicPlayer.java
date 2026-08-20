@@ -12,7 +12,9 @@ import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
 import com.sedmelluq.discord.lavaplayer.track.playback.MutableAudioFrame;
+import de.zoeyvid.ytparty.ClientConfig;
 import dev.lavalink.youtube.YoutubeAudioSourceManager;
+import dev.lavalink.youtube.YoutubeSourceOptions;
 import dev.lavalink.youtube.clients.Android;
 import dev.lavalink.youtube.clients.AndroidMusic;
 import dev.lavalink.youtube.clients.AndroidVr;
@@ -46,7 +48,7 @@ public final class MusicPlayer {
     public MusicPlayer() {
         manager.getConfiguration().setOutputFormat(FORMAT);
         manager.setFrameBufferDuration(1000);
-        manager.registerSourceManager(new YoutubeAudioSourceManager(true, new Music(), new AndroidVr(), new Web(), new WebEmbedded(), new MWeb(), new TvHtml5Simply(), new AndroidMusic(), new Ios(), new Android(), new Tv()));
+        manager.registerSourceManager(new YoutubeAudioSourceManager(youtubeOptions(), new Music(), new AndroidVr(), new Web(), new WebEmbedded(), new MWeb(), new TvHtml5Simply(), new AndroidMusic(), new Ios(), new Android(), new Tv()));
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
                 if (reason == AudioTrackEndReason.FINISHED) decodeFinished = true;
@@ -57,6 +59,12 @@ public final class MusicPlayer {
         pump.setDaemon(true);
         pump.setPriority(Thread.MAX_PRIORITY);
         pump.start();
+    }
+
+    private static YoutubeSourceOptions youtubeOptions() {
+        YoutubeSourceOptions options = new YoutubeSourceOptions();
+        if (!ClientConfig.cipherUrl.isBlank()) options.setRemoteCipher(ClientConfig.cipherUrl.trim(), ClientConfig.cipherPassword.isBlank() ? null : ClientConfig.cipherPassword, "ytparty");
+        return options;
     }
 
     public void setOnEnd(Runnable r) { onEnd = r != null ? r : () -> {}; }
