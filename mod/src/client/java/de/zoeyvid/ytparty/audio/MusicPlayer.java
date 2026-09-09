@@ -81,7 +81,8 @@ public final class MusicPlayer {
             if (stream.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP || stream.getContent() == null || stream.getContent().isBlank()) continue;
             if (best == null || stream.getAverageBitrate() > best.getAverageBitrate()) best = stream;
         }
-        return best != null ? best.getContent() : null;
+        if (best != null) return best.getContent();
+        return info.getHlsUrl() == null || info.getHlsUrl().isBlank() ? null : info.getHlsUrl();
     }
 
     public void setOnEnd(Runnable r) { onEnd = r != null ? r : () -> {}; }
