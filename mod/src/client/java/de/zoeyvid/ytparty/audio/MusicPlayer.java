@@ -7,28 +7,23 @@ import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
+import com.sedmelluq.discord.lavaplayer.source.http.HttpAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
 import com.sedmelluq.discord.lavaplayer.track.playback.MutableAudioFrame;
-import de.zoeyvid.ytparty.ClientConfig;
-import dev.lavalink.youtube.YoutubeAudioSourceManager;
-import dev.lavalink.youtube.YoutubeSourceOptions;
-import dev.lavalink.youtube.clients.Android;
-import dev.lavalink.youtube.clients.AndroidMusic;
-import dev.lavalink.youtube.clients.AndroidVr;
-import dev.lavalink.youtube.clients.Ios;
-import dev.lavalink.youtube.clients.MWeb;
-import dev.lavalink.youtube.clients.Music;
-import dev.lavalink.youtube.clients.Tv;
-import dev.lavalink.youtube.clients.TvHtml5Simply;
-import dev.lavalink.youtube.clients.Web;
-import dev.lavalink.youtube.clients.WebEmbedded;
+
+import org.schabi.newpipe.extractor.NewPipe;
+import org.schabi.newpipe.extractor.ServiceList;
+import org.schabi.newpipe.extractor.stream.AudioStream;
+import org.schabi.newpipe.extractor.stream.DeliveryMethod;
+import org.schabi.newpipe.extractor.stream.StreamInfo;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -45,10 +40,13 @@ public final class MusicPlayer {
     private volatile boolean decodeFinished;
     private volatile long seekTarget = -1;
 
+    private static final ExecutorService RESOLVER = Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "ytparty-resolve"); t.setDaemon(true); return t; });
+    private static boolean newPipeReady;
+
     public MusicPlayer() {
         manager.getConfiguration().setOutputFormat(FORMAT);
         manager.setFrameBufferDuration(1000);
-        manager.registerSourceManager(new YoutubeAudioSourceManager(youtubeOptions(), new Music(), new AndroidVr(), new Web(), new WebEmbedded(), new MWeb(), new TvHtml5Simply(), new AndroidMusic(), new Ios(), new Android(), new Tv()));
+        manager.registerSourceManager(new HttpAudioSourceManager());
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
                 if (reason == AudioTrackEndReason.FINISHED) decodeFinished = true;
@@ -61,45 +59,52 @@ public final class MusicPlayer {
         pump.start();
     }
 
-    private static YoutubeSourceOptions youtubeOptions() {
-        YoutubeSourceOptions options = new YoutubeSourceOptions();
-        if (!ClientConfig.cipherUrl.isBlank()) options.setRemoteCipher(ClientConfig.cipherUrl.trim(), ClientConfig.cipherPassword.isBlank() ? null : ClientConfig.cipherPassword, "ytparty");
-        return options;
+    private static synchronized StreamInfo streamInfo(String identifier) throws Exception {
+        if (!newPipeReady) { NewPipe.init(new NewPipeDownloader()); newPipeReady = true; }
+        return StreamInfo.getInfo(ServiceList.YouTube, identifier);
+    }
+
+    private static String bestAudioUrl(StreamInfo info) {
+        AudioStream best = null;
+        for (AudioStream stream : info.getAudioStreams()) {
+            if (stream.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP || stream.getContent() == null || stream.getContent().isBlank()) continue;
+            if (best == null || stream.getAverageBitrate() > best.getAverageBitrate()) best = stream;
+        }
+        return best != null ? best.getContent() : null;
     }
 
     public void setOnEnd(Runnable r) { onEnd = r != null ? r : () -> {}; }
     public void setOnError(Runnable r) { onError = r != null ? r : () -> {}; }
 
     public void resolveAll(String identifier, Consumer<List<String[]>> onDone) {
-        manager.loadItem(identifier, new AudioLoadResultHandler() {
-            public void trackLoaded(AudioTrack track) { onDone.accept(List.<String[]>of(new String[]{identifier, track.getInfo().title})); }
-            public void playlistLoaded(AudioPlaylist list) {
-                if (list.getTracks().isEmpty()) { onDone.accept(List.of()); return; }
-                AudioTrack first = list.getTracks().getFirst();
-                onDone.accept(List.<String[]>of(new String[]{first.getInfo().uri, first.getInfo().title}));
-            }
-            public void noMatches() { onDone.accept(List.of()); }
-            public void loadFailed(FriendlyException e) { onDone.accept(List.of()); }
+        RESOLVER.execute(() -> {
+            try { onDone.accept(List.<String[]>of(new String[]{identifier, streamInfo(identifier).getName()})); }
+            catch (Exception e) { onDone.accept(List.of()); }
         });
     }
 
     public void resolve(String identifier, BiConsumer<String, String> onResolved, Runnable onFail) {
-        manager.loadItem(identifier, new AudioLoadResultHandler() {
-            public void trackLoaded(AudioTrack track) { onResolved.accept(identifier, track.getInfo().title); }
-            public void playlistLoaded(AudioPlaylist list) {
-                if (list.getTracks().isEmpty()) { onFail.run(); return; }
-                AudioTrack first = list.getTracks().getFirst();
-                onResolved.accept(first.getInfo().uri, first.getInfo().title);
-            }
-            public void noMatches() { onFail.run(); }
-            public void loadFailed(FriendlyException e) { onFail.run(); }
+        RESOLVER.execute(() -> {
+            try { onResolved.accept(identifier, streamInfo(identifier).getName()); }
+            catch (Exception e) { onFail.run(); }
         });
     }
 
     public void playIdentifier(String identifier, Consumer<String> onTitle) {
+        RESOLVER.execute(() -> {
+            try {
+                StreamInfo info = streamInfo(identifier);
+                String url = bestAudioUrl(info);
+                if (url == null) { onError.run(); return; }
+                load(url, info.getName(), onTitle);
+            } catch (Exception e) { onError.run(); }
+        });
+    }
+
+    private void load(String identifier, String title, Consumer<String> onTitle) {
         manager.loadItem(identifier, new AudioLoadResultHandler() {
-            public void trackLoaded(AudioTrack track) { start(track, onTitle); }
-            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) onError.run(); else start(pick(list), onTitle); }
+            public void trackLoaded(AudioTrack track) { start(track, title, onTitle); }
+            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) onError.run(); else start(pick(list), title, onTitle); }
             public void noMatches() { onError.run(); }
             public void loadFailed(FriendlyException e) { onError.run(); }
         });
@@ -112,10 +117,10 @@ public final class MusicPlayer {
         player.playTrack(track);
     }
 
-    private void start(AudioTrack track, Consumer<String> onTitle) {
+    private void start(AudioTrack track, String title, Consumer<String> onTitle) {
         lastTrack = track;
         begin(track);
-        if (onTitle != null) onTitle.accept(track.getInfo().title);
+        if (onTitle != null) onTitle.accept(title != null ? title : track.getInfo().title);
     }
 
     public void repeatCurrent() { if (lastTrack != null) begin(lastTrack.makeClone()); }

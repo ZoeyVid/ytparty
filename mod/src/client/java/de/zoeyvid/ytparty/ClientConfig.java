@@ -18,8 +18,6 @@ public final class ClientConfig {
     private static boolean hudEnabled = true;
     private static int hudCorner = 1;
     private static boolean hudAlways = false;
-    public static String cipherUrl = "";
-    public static String cipherPassword = "";
 
     private ClientConfig() {}
 
@@ -42,8 +40,6 @@ public final class ClientConfig {
         RelayClient.rememberPassword = Boolean.parseBoolean(p.getProperty("relay.remember-password", "true"));
         if (RelayClient.rememberPassword) RelayClient.password = p.getProperty("relay.password", "");
         RelayClient.autoConnect = Boolean.parseBoolean(p.getProperty("relay.autoconnect", "false"));
-        cipherUrl = p.getProperty("cipher.url", "");
-        cipherPassword = p.getProperty("cipher.password", "");
         PlayerController.INSTANCE.setVolume(parseInt(p.getProperty("volume", "100"), 100));
         sbFlags = (byte) parseInt(p.getProperty("sponsorblock.flags", String.valueOf(SponsorBlock.FLAG_ALL)), SponsorBlock.FLAG_ALL);
         if (Boolean.parseBoolean(p.getProperty("repeat", "false"))) PlayerController.INSTANCE.toggleRepeat();
@@ -62,8 +58,6 @@ public final class ClientConfig {
         p.setProperty("relay.remember-password", Boolean.toString(RelayClient.rememberPassword));
         if (RelayClient.rememberPassword) p.setProperty("relay.password", RelayClient.password);
         p.setProperty("relay.autoconnect", Boolean.toString(RelayClient.autoConnect));
-        p.setProperty("cipher.url", cipherUrl);
-        p.setProperty("cipher.password", cipherPassword);
         p.setProperty("volume", Integer.toString(PlayerController.INSTANCE.volume()));
         p.setProperty("sponsorblock.flags", Integer.toString(sbFlags));
         p.setProperty("repeat", Boolean.toString(PlayerController.INSTANCE.repeatOne()));

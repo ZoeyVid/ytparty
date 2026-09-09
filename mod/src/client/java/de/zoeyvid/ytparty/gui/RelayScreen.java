@@ -12,8 +12,6 @@ public final class RelayScreen extends Screen {
     private EditBox hostField;
     private EditBox portField;
     private EditBox passField;
-    private EditBox cipherUrlField;
-    private EditBox cipherPassField;
     private String lastStatus = "";
 
     public RelayScreen() { super(Component.literal("Relay")); }
@@ -76,22 +74,6 @@ public final class RelayScreen extends Screen {
             }).tooltip(Tooltip.create(Component.literal("Connect to the relay"))).bounds(left, top + 104, 320, 20).build());
         }
 
-        addRenderableWidget(new StringWidget(left, top + 134, 60, 12, Component.literal("YT Cipher"), this.font));
-        cipherUrlField = new EditBox(this.font, left + 64, top + 130, 256, 20, Component.literal("cipher url"));
-        cipherUrlField.setMaxLength(255);
-        cipherUrlField.setValue(de.zoeyvid.ytparty.ClientConfig.cipherUrl);
-        cipherUrlField.setHint(Component.literal("https://cipher.kikkia.dev/"));
-        cipherUrlField.setTooltip(Tooltip.create(Component.literal("Optional remote cipher server used to decode YouTube streams when YouTube breaks the built-in decoder. Leave empty to decode locally. Applies after a restart")));
-        addRenderableWidget(cipherUrlField);
-
-        addRenderableWidget(new StringWidget(left, top + 160, 60, 12, Component.literal("Cipher pw"), this.font));
-        cipherPassField = new EditBox(this.font, left + 64, top + 156, 256, 20, Component.literal("cipher password"));
-        cipherPassField.setMaxLength(255);
-        cipherPassField.setValue(de.zoeyvid.ytparty.ClientConfig.cipherPassword);
-        cipherPassField.addFormatter((s, idx) -> net.minecraft.util.FormattedCharSequence.forward("\u2022".repeat(s.length()), net.minecraft.network.chat.Style.EMPTY));
-        cipherPassField.setTooltip(Tooltip.create(Component.literal("Password for the cipher server, if it requires one. Leave empty for public servers")));
-        addRenderableWidget(cipherPassField);
-
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> { de.zoeyvid.ytparty.ClientConfig.save(); this.minecraft.setScreenAndShow(new PlaylistScreen()); })
             .tooltip(Tooltip.create(Component.literal("Back to the playlist"))).bounds(left, this.height - 28, 320, 20).build());
     }
@@ -108,8 +90,6 @@ public final class RelayScreen extends Screen {
         RelayClient.host = hostField.getValue();
         RelayClient.port = portField.getValue();
         RelayClient.password = passField.getValue();
-        de.zoeyvid.ytparty.ClientConfig.cipherUrl = cipherUrlField.getValue();
-        de.zoeyvid.ytparty.ClientConfig.cipherPassword = cipherPassField.getValue();
         String sig = RelayClient.INSTANCE.status().name() + RelayClient.INSTANCE.message();
         if (!sig.equals(lastStatus)) rebuildWidgets();
     }

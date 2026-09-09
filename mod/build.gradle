@@ -34,7 +34,7 @@ dependencies {
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     bundle "dev.arbjerg:lavaplayer:${project.lavaplayer_version}"
-    bundle "dev.lavalink.youtube:common:${project.youtube_source_version}"
+    bundle "com.github.TeamNewPipe:NewPipeExtractor:${project.newpipe_version}"
     compileOnly("com.terraformersmc:modmenu:${project.modmenu_version}") { transitive = false }
 }
 
