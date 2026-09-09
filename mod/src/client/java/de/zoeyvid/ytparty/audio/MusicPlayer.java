@@ -21,7 +21,9 @@ import org.schabi.newpipe.extractor.stream.DeliveryMethod;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
 
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
@@ -42,6 +44,9 @@ public final class MusicPlayer {
 
     private static final ExecutorService RESOLVER = Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "ytparty-resolve"); t.setDaemon(true); return t; });
     private static boolean newPipeReady;
+    private static final Map<String, StreamInfo> RESOLVED = new HashMap<>();
+    private String playing;
+    private boolean mayRetry;
 
     public MusicPlayer() {
         manager.getConfiguration().setOutputFormat(FORMAT);
@@ -50,7 +55,7 @@ public final class MusicPlayer {
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
                 if (reason == AudioTrackEndReason.FINISHED) decodeFinished = true;
-                else if (reason == AudioTrackEndReason.LOAD_FAILED) onError.run();
+                else if (reason == AudioTrackEndReason.LOAD_FAILED) failed();
             }
         });
         Thread pump = new Thread(this::pumpLoop, "ytparty-audio");
@@ -61,8 +66,14 @@ public final class MusicPlayer {
 
     private static synchronized StreamInfo streamInfo(String identifier) throws Exception {
         if (!newPipeReady) { NewPipe.init(new NewPipeDownloader()); newPipeReady = true; }
-        return StreamInfo.getInfo(ServiceList.YouTube, identifier);
+        StreamInfo cached = RESOLVED.get(identifier);
+        if (cached != null) return cached;
+        StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, identifier);
+        RESOLVED.put(identifier, info);
+        return info;
     }
+
+    private static synchronized void forget(String identifier) { RESOLVED.remove(identifier); }
 
     private static String bestAudioUrl(StreamInfo info) {
         AudioStream best = null;
@@ -91,23 +102,30 @@ public final class MusicPlayer {
     }
 
     public void playIdentifier(String identifier, Consumer<String> onTitle) {
-        RESOLVER.execute(() -> {
-            try {
-                StreamInfo info = streamInfo(identifier);
-                String url = bestAudioUrl(info);
-                if (url == null) { onError.run(); return; }
-                load(url, info.getName(), onTitle);
-            } catch (Exception e) { onError.run(); }
+        playing = identifier;
+        mayRetry = true;
+        RESOLVER.execute(() -> load(identifier, onTitle));
+    }
+
+    private void load(String identifier, Consumer<String> onTitle) {
+        StreamInfo info;
+        String url;
+        try { info = streamInfo(identifier); url = bestAudioUrl(info); } catch (Exception e) { failed(); return; }
+        if (url == null) { failed(); return; }
+        manager.loadItem(url, new AudioLoadResultHandler() {
+            public void trackLoaded(AudioTrack track) { start(track, info.getName(), onTitle); }
+            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) failed(); else start(pick(list), info.getName(), onTitle); }
+            public void noMatches() { failed(); }
+            public void loadFailed(FriendlyException e) { failed(); }
         });
     }
 
-    private void load(String identifier, String title, Consumer<String> onTitle) {
-        manager.loadItem(identifier, new AudioLoadResultHandler() {
-            public void trackLoaded(AudioTrack track) { start(track, title, onTitle); }
-            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) onError.run(); else start(pick(list), title, onTitle); }
-            public void noMatches() { onError.run(); }
-            public void loadFailed(FriendlyException e) { onError.run(); }
-        });
+    private void failed() {
+        if (playing == null || !mayRetry) { onError.run(); return; }
+        mayRetry = false;
+        String identifier = playing;
+        forget(identifier);
+        RESOLVER.execute(() -> load(identifier, null));
     }
 
     private void begin(AudioTrack track) {
@@ -123,7 +141,7 @@ public final class MusicPlayer {
         if (onTitle != null) onTitle.accept(title != null ? title : track.getInfo().title);
     }
 
-    public void repeatCurrent() { if (lastTrack != null) begin(lastTrack.makeClone()); }
+    public void repeatCurrent() { mayRetry = true; if (lastTrack != null) begin(lastTrack.makeClone()); }
 
     private static AudioTrack pick(AudioPlaylist list) {
         return list.getSelectedTrack() != null ? list.getSelectedTrack() : list.getTracks().getFirst();
