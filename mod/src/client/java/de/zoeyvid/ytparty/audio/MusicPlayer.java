@@ -19,6 +19,7 @@ import org.schabi.newpipe.extractor.ServiceList;
 import org.schabi.newpipe.extractor.stream.AudioStream;
 import org.schabi.newpipe.extractor.stream.DeliveryMethod;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
+import org.schabi.newpipe.extractor.stream.StreamType;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -81,7 +82,11 @@ public final class MusicPlayer {
             if (stream.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP || stream.getContent() == null || stream.getContent().isBlank()) continue;
             if (best == null || stream.getAverageBitrate() > best.getAverageBitrate()) best = stream;
         }
-        return best != null ? best.getContent() : null;
+        return best == null ? null : best.getContent();
+    }
+
+    private static boolean live(StreamInfo info) {
+        return info.getStreamType() == StreamType.LIVE_STREAM || info.getStreamType() == StreamType.AUDIO_LIVE_STREAM;
     }
 
     public void setOnEnd(Runnable r) { onEnd = r != null ? r : () -> {}; }
@@ -89,15 +94,19 @@ public final class MusicPlayer {
 
     public void resolveAll(String identifier, Consumer<List<String[]>> onDone) {
         RESOLVER.execute(() -> {
-            try { onDone.accept(List.<String[]>of(new String[]{identifier, streamInfo(identifier).getName()})); }
-            catch (Exception e) { onDone.accept(List.of()); }
+            try {
+                StreamInfo info = streamInfo(identifier);
+                onDone.accept(live(info) ? List.of() : List.<String[]>of(new String[]{identifier, info.getName()}));
+            } catch (Exception e) { onDone.accept(List.of()); }
         });
     }
 
     public void resolve(String identifier, BiConsumer<String, String> onResolved, Runnable onFail) {
         RESOLVER.execute(() -> {
-            try { onResolved.accept(identifier, streamInfo(identifier).getName()); }
-            catch (Exception e) { onFail.run(); }
+            try {
+                StreamInfo info = streamInfo(identifier);
+                if (live(info)) onFail.run(); else onResolved.accept(identifier, info.getName());
+            } catch (Exception e) { onFail.run(); }
         });
     }
 
@@ -110,7 +119,7 @@ public final class MusicPlayer {
     private void load(String identifier, Consumer<String> onTitle) {
         StreamInfo info;
         String url;
-        try { info = streamInfo(identifier); url = bestAudioUrl(info); } catch (Exception e) { failed(); return; }
+        try { info = streamInfo(identifier); url = live(info) ? null : bestAudioUrl(info); } catch (Exception e) { failed(); return; }
         if (url == null) { failed(); return; }
         manager.loadItem(url, new AudioLoadResultHandler() {
             public void trackLoaded(AudioTrack track) { start(track, info.getName(), onTitle); }

@@ -9,11 +9,25 @@ toggle‑sync pattern, and direct HUD drawing.
 
 | Feature | Effort | Protocol? |
 |---|---|---|
+| Livestream playback | High (blocked upstream) | no |
 | Playlist‑URL loading (add **all** tracks) | Low | no |
 | Shuffle | Low | optional |
 | "Who added" a track — player heads | Low–Medium | tiny |
 | Action log (who paused / skipped / played) | Low–Medium | small |
 | Skip‑voting ＋ open‑add mode | Medium–High | yes |
+
+## Livestream playback
+
+Livestreams are **rejected on purpose** — adding one reports that it isn't supported. The blocker is in
+lavaplayer, not here: its HLS support (`HlsStreamTrack` → `MpegTsM3uStreamAudioTrack`) only reads
+MPEG‑TS segments carrying ADTS AAC, while YouTube ships fMP4 segments for live. That path yields zero
+audio frames and ends the track immediately, which previously looked like silence with a restart every
+few seconds.
+
+The DASH audio streams *do* decode, but a plain request returns a single ~2 s segment; continuous
+playback needs the `sq` sequence parameter counted up and the init segment stitched in front of every
+media segment. That means a custom source manager and a segment‑chaining stream — a project of its own,
+which is why it isn't built.
 
 ## Playlist‑URL loading
 
