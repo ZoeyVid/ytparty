@@ -13,7 +13,6 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    init: true
     environment:
       TZ: Europe/Berlin
       YTPARTY_RELAY_PASSWORD:
