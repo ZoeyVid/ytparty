@@ -53,7 +53,7 @@ relay; each one's server backend is simply ignored while the relay is connected.
    keybind (rebindable under Options → Controls) and add a YouTube URL — that already works solo.
 2. **To sync with others**, either:
    - **Relay:** enter host / port / password in the in‑game *Relay* screen and connect. Run your own
-     with Docker (`compose.yaml` + `relay/Dockerfile`, image `ghcr.io/zoeyvid/ytparty`) — see
+     with Docker (`relay/compose.yaml` + `relay/Dockerfile`, image `ghcr.io/zoeyvid/ytparty`) — see
      [`relay/README.md`](relay/README.md).
    - **Server backend:** join a Fabric server with the server mod, or a Bukkit server with the plugin.
      No client setup needed — the party UI just works there.
