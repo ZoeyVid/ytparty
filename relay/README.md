@@ -6,7 +6,7 @@ image (`zoeyvid/ytparty`, `ghcr.io/zoeyvid/ytparty`).
 
 ## Run
 
-Use the shipped `compose.yaml` from the repo root: set `YTPARTY_RELAY_PASSWORD` in its
+Use the shipped `compose.yaml` from the relay folder: set `YTPARTY_RELAY_PASSWORD` in its
 `environment:` section, then start it with:
 
 ```
