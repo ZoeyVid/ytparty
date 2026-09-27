@@ -16,7 +16,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 public final class YtPartyClient implements ClientModInitializer {
     private boolean autoConnectDone;
@@ -28,7 +27,7 @@ public final class YtPartyClient implements ClientModInitializer {
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("ytparty", "now_playing"), new NowPlayingHud());
 
         KeyMapping open = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-            "key.ytparty.open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, KeyMapping.Category.MISC));
+            "key.ytparty.open", InputConstants.KEY_J, KeyMapping.Category.MISC));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             PlayerController.INSTANCE.tick();
