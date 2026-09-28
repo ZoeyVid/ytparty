@@ -43,5 +43,5 @@ the compose file (use an `.env` / secret).
 ## Assumptions
 
 The backend (relay operator, or the Minecraft server) sees party membership and playlist contents in
-the clear — the encryption protects the link, not the operator. YouTube URLs are resolved and audio is
-fetched **by each client**, not by the backend.
+the clear — the encryption protects the link, not the operator. YouTube and ARD Mediathek URLs are
+resolved and audio is fetched **by each client**, not by the backend.

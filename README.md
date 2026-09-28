@@ -1,8 +1,8 @@
 # YT Party
 
-Synchronised YouTube listening inside Minecraft. Everyone in a *party* hears the same track at the
-same position — play/pause, seek, skip and playlist edits stay in lockstep. Audio is decoded and
-played entirely client‑side; nothing but small control messages travels over the network.
+Synchronised YouTube and ARD Mediathek listening inside Minecraft. Everyone in a *party* hears the
+same track at the same position — play/pause, seek, skip and playlist edits stay in lockstep. Audio is
+decoded and played entirely client‑side; nothing but small control messages travels over the network.
 
 > **Note — this project is vibecoded.** It was built end-to-end by an AI (Claude Opus) from
 > natural-language prompts, not hand-written by a human engineer. Keep that in mind: read the code and
@@ -50,7 +50,9 @@ relay; each one's server backend is simply ignored while the relay is connected.
 ## Quick start
 
 1. **Install the client mod** (needs Fabric API) in your `mods/` folder. Open the party UI with the
-   keybind (rebindable under Options → Controls) and add a YouTube URL — that already works solo.
+   keybind (rebindable under Options → Controls) and add a YouTube or ARD Mediathek video URL — that
+   already works solo. Livestreams aren't supported. ARD Mediathek videos that are age‑restricted (FSK)
+   or need a login can't be added, and some are only available from Germany.
 2. **To sync with others**, either:
    - **Relay:** enter host / port / password in the in‑game *Relay* screen and connect. Run your own
      with Docker (`relay/compose.yaml` + `relay/Dockerfile`, image `ghcr.io/zoeyvid/ytparty`) — see

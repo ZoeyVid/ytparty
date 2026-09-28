@@ -8,9 +8,9 @@ concrete versions live in the build files, not here, so they don't rot.
 
 ## What it is
 
-Synchronised YouTube listening in Minecraft. A Fabric **client mod** does the UI and the audio
-(extract → decode with lavaplayer → OpenAL). Party state lives in a **backend**; there are three
-interchangeable ones that all run the *same* logic:
+Synchronised YouTube and ARD Mediathek listening in Minecraft. A Fabric **client mod** does the UI and
+the audio (extract → decode with lavaplayer → OpenAL). Party state lives in a **backend**; there are
+three interchangeable ones that all run the *same* logic:
 
 - **relay** — standalone Go server, end‑to‑end encrypted, works across arbitrary servers
 - **server mod** — the client jar's server side, for a Fabric server
