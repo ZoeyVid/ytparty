@@ -10,6 +10,9 @@ What each component pulls in and why. Exact versions are pinned in the build fil
   (that's why the client jar is large; the slim server jar has no audio and stays tiny).
 - ARD Mediathek URLs are resolved against ARD's own API (no key needed) with the JDK HTTP client and
   the Gson that ships with Minecraft — no extra library.
+- **ffmpeg** (optional, installed on the system, not bundled) — decodes the picture‑in‑picture video.
+  The client starts the `ffmpeg` on the `PATH` as a child process and reads raw frames from it.
+  Without it, everything except the video works.
 - Crypto is JDK standard library only (ML‑KEM via the built‑in KEM API, AES‑GCM, PBKDF2) — no library.
 
 ## Plugin (`plugin/`)

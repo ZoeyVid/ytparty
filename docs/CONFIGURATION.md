@@ -21,6 +21,8 @@ managers change both per party in‑game.
 ## Client
 
 Nothing to edit by hand. The in‑game screens save automatically: the relay connection (host, port,
-password, remember‑password, autoconnect), volume, the Now‑Playing HUD, SponsorBlock categories, and
-the repeat / auto‑remove toggles all persist between sessions. Solo playlists are not persisted (party
-playlists live on the backend).
+password, remember‑password, autoconnect), volume, the Now‑Playing HUD, the picture‑in‑picture video
+(on/off, size, position), SponsorBlock categories, and the repeat / auto‑remove toggles all persist
+between sessions. Solo playlists are not persisted (party playlists live on the backend). Key binds
+(open the party UI, toggle the video) are under Options → Controls. The video needs `ffmpeg` on the
+`PATH`; without it, the video switches itself off with a hint as soon as it would start.

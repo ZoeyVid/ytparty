@@ -131,7 +131,7 @@ public final class PlayerController {
         audio.resolve(url, (uri, title) -> Minecraft.getInstance().execute(() -> {
             if (ctrl()) sink.send(SyncProtocol.add(uri, title));
             if (onDone != null) onDone.run();
-        }), () -> Minecraft.getInstance().execute(() -> { ClientSync.message("Couldn't add this URL (YouTube and ARD Mediathek videos only, no livestreams)"); if (onDone != null) onDone.run(); }));
+        }), reason -> Minecraft.getInstance().execute(() -> { ClientSync.message(reason != null ? reason : "Couldn't add this URL (YouTube and ARD Mediathek videos only)"); if (onDone != null) onDone.run(); }));
     }
 
     public void removeAt(int i) {
@@ -156,6 +156,8 @@ public final class PlayerController {
 
     public long position() { return audio.position(); }
     public long duration() { return audio.duration(); }
+    public MusicPlayer.Video video(int height) { return audio.video(height); }
+    public int seeks() { return audio.seeks(); }
 
     public void createParty() {
         if (backend == null) return;
