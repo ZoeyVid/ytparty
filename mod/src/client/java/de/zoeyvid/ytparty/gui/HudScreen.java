@@ -1,13 +1,18 @@
 package de.zoeyvid.ytparty.gui;
 
 import de.zoeyvid.ytparty.ClientConfig;
+import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.StringWidget;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
+import java.util.List;
+
 public final class HudScreen extends Screen {
+    private static final List<Integer> VIDEO_POSITIONS = List.of(0, 1, 2, 5, 8, 7, 6, 3);
+
     public HudScreen() { super(Component.literal("HUD")); }
 
     @Override
@@ -21,6 +26,16 @@ public final class HudScreen extends Screen {
             b -> { ClientConfig.setHudCorner((ClientConfig.hudCorner() + 1) % 4); rebuildWidgets(); }).tooltip(Tooltip.create(Component.literal("Where the overlay sits on screen"))).bounds(left, top + 26, 320, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Show: " + (ClientConfig.hudAlways() ? "Always" : "On track change")),
             b -> { ClientConfig.setHudAlways(!ClientConfig.hudAlways()); rebuildWidgets(); }).tooltip(Tooltip.create(Component.literal("Always visible, or only briefly on track change"))).bounds(left, top + 52, 320, 20).build());
+        AbstractSliderButton video = new AbstractSliderButton(left, top + 78, 320, 20, Component.empty(), ClientConfig.videoEnabled() ? ClientConfig.videoSize() / 50.0 : 0) {
+            { updateMessage(); }
+            private int percent() { return (int) Math.round(value * 50); }
+            @Override protected void updateMessage() { setMessage(Component.literal("Video: " + (percent() > 0 ? percent() + "% of the screen" : "OFF"))); }
+            @Override protected void applyValue() { if (percent() > 0) ClientConfig.setVideoSize(percent()); ClientConfig.setVideoEnabled(percent() > 0); }
+        };
+        video.setTooltip(Tooltip.create(Component.literal("Largest share of the screen width and height for the picture-in-picture video, which keeps its own aspect ratio; 0 turns it off (needs ffmpeg installed)")));
+        addRenderableWidget(video);
+        addRenderableWidget(Button.builder(Component.literal("Video position: " + switch (ClientConfig.videoPosition()) { case 0 -> "Top-left"; case 1 -> "Top center"; case 2 -> "Top-right"; case 3 -> "Left middle"; case 5 -> "Right middle"; case 6 -> "Bottom-left"; case 7 -> "Bottom center"; default -> "Bottom-right"; }),
+            b -> { ClientConfig.setVideoPosition(VIDEO_POSITIONS.get((VIDEO_POSITIONS.indexOf(ClientConfig.videoPosition()) + 1) % VIDEO_POSITIONS.size())); rebuildWidgets(); }).tooltip(Tooltip.create(Component.literal("Corner or edge where the video sits"))).bounds(left, top + 104, 320, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))
             .tooltip(Tooltip.create(Component.literal("Back to the playlist"))).bounds(left, this.height - 28, 320, 20).build());
     }
