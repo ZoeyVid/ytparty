@@ -10,6 +10,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -35,18 +38,19 @@ final class ArdMediathek {
             JsonObject show = object(player, "show");
             String series = show == null ? null : string(show, "title");
             if (series != null && title != null && !title.contains(series)) title = series + " – " + title;
-            if (bool(player, "blockedByFsk") || bool(player, "blockedByLoginOnly")) return new MusicPlayer.Media(title, null);
-            return new MusicPlayer.Media(title, smallestMp4(player));
+            if (bool(player, "blockedByFsk") || bool(player, "blockedByLoginOnly")) return new MusicPlayer.Media(title, null, Collections.emptyNavigableMap(), 0);
+            JsonObject collection = object(player, "mediaCollection");
+            JsonObject embedded = collection == null ? null : object(collection, "embedded");
+            JsonObject meta = embedded == null ? null : object(embedded, "meta");
+            NavigableMap<Integer, MusicPlayer.Video> videos = mp4s(embedded);
+            return new MusicPlayer.Media(title, videos.isEmpty() ? null : videos.firstEntry().getValue().url(), videos, meta == null ? 0 : integer(meta, "durationSeconds", 0) * 1000L);
         }
-        return new MusicPlayer.Media(null, null);
+        return new MusicPlayer.Media(null, null, Collections.emptyNavigableMap(), 0);
     }
 
-    private static String smallestMp4(JsonObject player) {
-        JsonObject collection = object(player, "mediaCollection");
-        JsonObject embedded = collection == null ? null : object(collection, "embedded");
-        if (embedded == null || !embedded.has("streams")) return null;
-        String best = null;
-        int bestHeight = Integer.MAX_VALUE;
+    private static NavigableMap<Integer, MusicPlayer.Video> mp4s(JsonObject embedded) {
+        NavigableMap<Integer, MusicPlayer.Video> videos = new TreeMap<>();
+        if (embedded == null || !embedded.has("streams")) return videos;
         for (JsonElement s : embedded.getAsJsonArray("streams")) {
             JsonObject stream = s.getAsJsonObject();
             if (!"main".equals(string(stream, "kind")) || !stream.has("media")) continue;
@@ -54,14 +58,15 @@ final class ArdMediathek {
                 JsonObject media = e.getAsJsonObject();
                 if (!"video/mp4".equals(string(media, "mimeType")) || string(media, "url") == null) continue;
                 if (!media.has("audios") || media.getAsJsonArray("audios").isEmpty() || !"standard".equals(string(media.getAsJsonArray("audios").get(0).getAsJsonObject(), "kind"))) continue;
-                int height = media.has("maxHResolutionPx") && !media.get("maxHResolutionPx").isJsonNull() ? media.get("maxHResolutionPx").getAsInt() : Integer.MAX_VALUE - 1;
-                if (height < bestHeight) { bestHeight = height; best = string(media, "url"); }
+                int height = integer(media, "maxVResolutionPx", Integer.MAX_VALUE);
+                videos.putIfAbsent(height, new MusicPlayer.Video(string(media, "url"), integer(media, "maxHResolutionPx", 0), height));
             }
         }
-        return best;
+        return videos;
     }
 
     private static String string(JsonObject o, String key) { return o.has(key) && o.get(key).isJsonPrimitive() ? o.get(key).getAsString() : null; }
     private static JsonObject object(JsonObject o, String key) { return o.has(key) && o.get(key).isJsonObject() ? o.getAsJsonObject(key) : null; }
+    private static int integer(JsonObject o, String key, int fallback) { return o.has(key) && o.get(key).isJsonPrimitive() ? o.get(key).getAsInt() : fallback; }
     private static boolean bool(JsonObject o, String key) { return o.has(key) && o.get(key).isJsonPrimitive() && o.get(key).getAsBoolean(); }
 }
