@@ -156,6 +156,8 @@ public final class PlayerController {
 
     public long position() { return audio.position(); }
     public long duration() { return audio.duration(); }
+    public String video() { return audio.video(); }
+    public int seeks() { return audio.seeks(); }
 
     public void createParty() {
         if (backend == null) return;

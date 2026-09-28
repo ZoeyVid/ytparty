@@ -35,10 +35,11 @@ final class ArdMediathek {
             JsonObject show = object(player, "show");
             String series = show == null ? null : string(show, "title");
             if (series != null && title != null && !title.contains(series)) title = series + " – " + title;
-            if (bool(player, "blockedByFsk") || bool(player, "blockedByLoginOnly")) return new MusicPlayer.Media(title, null);
-            return new MusicPlayer.Media(title, smallestMp4(player));
+            if (bool(player, "blockedByFsk") || bool(player, "blockedByLoginOnly")) return new MusicPlayer.Media(title, null, null);
+            String mp4 = smallestMp4(player);
+            return new MusicPlayer.Media(title, mp4, mp4);
         }
-        return new MusicPlayer.Media(null, null);
+        return new MusicPlayer.Media(null, null, null);
     }
 
     private static String smallestMp4(JsonObject player) {

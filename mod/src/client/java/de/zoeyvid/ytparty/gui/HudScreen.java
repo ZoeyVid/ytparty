@@ -21,6 +21,8 @@ public final class HudScreen extends Screen {
             b -> { ClientConfig.setHudCorner((ClientConfig.hudCorner() + 1) % 4); rebuildWidgets(); }).tooltip(Tooltip.create(Component.literal("Where the overlay sits on screen"))).bounds(left, top + 26, 320, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Show: " + (ClientConfig.hudAlways() ? "Always" : "On track change")),
             b -> { ClientConfig.setHudAlways(!ClientConfig.hudAlways()); rebuildWidgets(); }).tooltip(Tooltip.create(Component.literal("Always visible, or only briefly on track change"))).bounds(left, top + 52, 320, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Video: " + (ClientConfig.videoEnabled() ? "ON" : "OFF")),
+            b -> { ClientConfig.setVideoEnabled(!ClientConfig.videoEnabled()); rebuildWidgets(); }).tooltip(Tooltip.create(Component.literal("Small picture-in-picture video in the same corner (needs ffmpeg installed)"))).bounds(left, top + 78, 320, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))
             .tooltip(Tooltip.create(Component.literal("Back to the playlist"))).bounds(left, this.height - 28, 320, 20).build());
     }
