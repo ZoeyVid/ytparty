@@ -4,9 +4,9 @@ Synchronised YouTube listening inside Minecraft. Everyone in a *party* hears the
 same position — play/pause, seek, skip and playlist edits stay in lockstep. Audio is decoded and
 played entirely client‑side; nothing but small control messages travels over the network.
 
-> **Note — this project is "vibecoded".** It was built end-to-end by an AI (Claude Opus 4.8) from
+> **Note — this project is vibecoded.** It was built end-to-end by an AI (Claude Opus) from
 > natural-language prompts, not hand-written by a human engineer. Keep that in mind: read the code and
-> test it before relying on it. The quality reflects what Opus 4.8 produces at best — no more, no less.
+> test it before relying on it. The quality reflects what Opus produces at best — no more, no less.
 >
 > **This is the exception, not the rule.** All of my *other* projects are written by hand and are
 > **AI-free — not vibecoded**. This repository is the only one built this way, and it is labelled as
