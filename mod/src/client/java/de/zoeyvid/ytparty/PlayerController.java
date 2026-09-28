@@ -131,7 +131,7 @@ public final class PlayerController {
         audio.resolve(url, (uri, title) -> Minecraft.getInstance().execute(() -> {
             if (ctrl()) sink.send(SyncProtocol.add(uri, title));
             if (onDone != null) onDone.run();
-        }), () -> Minecraft.getInstance().execute(() -> { ClientSync.message("Couldn't add this URL (livestreams aren't supported)"); if (onDone != null) onDone.run(); }));
+        }), () -> Minecraft.getInstance().execute(() -> { ClientSync.message("Couldn't add this URL (YouTube and ARD Mediathek videos only, no livestreams)"); if (onDone != null) onDone.run(); }));
     }
 
     public void removeAt(int i) {

@@ -45,7 +45,7 @@ public final class MusicPlayer {
 
     private static final ExecutorService RESOLVER = Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "ytparty-resolve"); t.setDaemon(true); return t; });
     private static boolean newPipeReady;
-    private static final Map<String, StreamInfo> RESOLVED = new HashMap<>();
+    private static final Map<String, Media> RESOLVED = new HashMap<>();
     private String playing;
     private boolean mayRetry;
 
@@ -65,13 +65,21 @@ public final class MusicPlayer {
         pump.start();
     }
 
-    private static synchronized StreamInfo streamInfo(String identifier) throws Exception {
-        if (!newPipeReady) { NewPipe.init(new NewPipeDownloader()); newPipeReady = true; }
-        StreamInfo cached = RESOLVED.get(identifier);
+    record Media(String title, String url) {}
+
+    private static synchronized Media media(String identifier) throws Exception {
+        Media cached = RESOLVED.get(identifier);
         if (cached != null) return cached;
+        String ard = ArdMediathek.id(identifier);
+        Media media = ard != null ? ArdMediathek.resolve(ard) : youtube(identifier);
+        if (media.url() != null) RESOLVED.put(identifier, media);
+        return media;
+    }
+
+    private static Media youtube(String identifier) throws Exception {
+        if (!newPipeReady) { NewPipe.init(new NewPipeDownloader()); newPipeReady = true; }
         StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, identifier);
-        RESOLVED.put(identifier, info);
-        return info;
+        return new Media(info.getName(), live(info) ? null : bestAudioUrl(info));
     }
 
     private static synchronized void forget(String identifier) { RESOLVED.remove(identifier); }
@@ -95,8 +103,8 @@ public final class MusicPlayer {
     public void resolveAll(String identifier, Consumer<List<String[]>> onDone) {
         RESOLVER.execute(() -> {
             try {
-                StreamInfo info = streamInfo(identifier);
-                onDone.accept(live(info) ? List.of() : List.<String[]>of(new String[]{identifier, info.getName()}));
+                Media media = media(identifier);
+                onDone.accept(media.url() == null ? List.of() : List.<String[]>of(new String[]{identifier, media.title()}));
             } catch (Exception e) { onDone.accept(List.of()); }
         });
     }
@@ -104,8 +112,8 @@ public final class MusicPlayer {
     public void resolve(String identifier, BiConsumer<String, String> onResolved, Runnable onFail) {
         RESOLVER.execute(() -> {
             try {
-                StreamInfo info = streamInfo(identifier);
-                if (live(info)) onFail.run(); else onResolved.accept(identifier, info.getName());
+                Media media = media(identifier);
+                if (media.url() == null) onFail.run(); else onResolved.accept(identifier, media.title());
             } catch (Exception e) { onFail.run(); }
         });
     }
@@ -117,13 +125,12 @@ public final class MusicPlayer {
     }
 
     private void load(String identifier, Consumer<String> onTitle) {
-        StreamInfo info;
-        String url;
-        try { info = streamInfo(identifier); url = live(info) ? null : bestAudioUrl(info); } catch (Exception e) { failed(); return; }
-        if (url == null) { failed(); return; }
-        manager.loadItem(url, new AudioLoadResultHandler() {
-            public void trackLoaded(AudioTrack track) { start(track, info.getName(), onTitle); }
-            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) failed(); else start(pick(list), info.getName(), onTitle); }
+        Media media;
+        try { media = media(identifier); } catch (Exception e) { failed(); return; }
+        if (media.url() == null) { failed(); return; }
+        manager.loadItem(media.url(), new AudioLoadResultHandler() {
+            public void trackLoaded(AudioTrack track) { start(track, media.title(), onTitle); }
+            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) failed(); else start(pick(list), media.title(), onTitle); }
             public void noMatches() { failed(); }
             public void loadFailed(FriendlyException e) { failed(); }
         });
