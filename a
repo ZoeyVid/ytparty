@@ -1,0 +1,21 @@
+diff --git a/mod/src/client/java/de/zoeyvid/ytparty/ClientConfig.java b/mod/src/client/java/de/zoeyvid/ytparty/ClientConfig.java
+index 38f8232..9928723 100644
+--- a/mod/src/client/java/de/zoeyvid/ytparty/ClientConfig.java
++++ b/mod/src/client/java/de/zoeyvid/ytparty/ClientConfig.java
+@@ -20,7 +20,7 @@ public final class ClientConfig {
+     private static boolean hudAlways = false;
+     private static boolean videoEnabled = false;
+     private static int videoSize = 25;
+-    private static int videoPosition = 6;
++    private static int videoPosition = 5;
+ 
+     private ClientConfig() {}
+ 
+@@ -58,7 +58,7 @@ public final class ClientConfig {
+         hudAlways = Boolean.parseBoolean(p.getProperty("hud.always", "false"));
+         videoEnabled = Boolean.parseBoolean(p.getProperty("video.enabled", "false"));
+         videoSize = Math.clamp(parseInt(p.getProperty("video.size", "25"), 25), 1, 50);
+-        videoPosition = parseInt(p.getProperty("video.position", "6"), 6);
++        videoPosition = parseInt(p.getProperty("video.position", "5"), 5);
+         loaded = true;
+     }
