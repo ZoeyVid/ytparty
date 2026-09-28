@@ -156,6 +156,8 @@ public final class PlayerController {
 
     public long position() { return audio.position(); }
     public long duration() { return audio.duration(); }
+    public MusicPlayer.Video video(int height) { return audio.video(height); }
+    public int seeks() { return audio.seeks(); }
 
     public void createParty() {
         if (backend == null) return;

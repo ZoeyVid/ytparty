@@ -18,6 +18,9 @@ public final class ClientConfig {
     private static boolean hudEnabled = true;
     private static int hudCorner = 1;
     private static boolean hudAlways = false;
+    private static boolean videoEnabled = false;
+    private static int videoSize = 25;
+    private static int videoPosition = 6;
 
     private ClientConfig() {}
 
@@ -26,9 +29,15 @@ public final class ClientConfig {
     public static boolean hudEnabled() { return hudEnabled; }
     public static int hudCorner() { return hudCorner; }
     public static boolean hudAlways() { return hudAlways; }
+    public static boolean videoEnabled() { return videoEnabled; }
+    public static int videoSize() { return videoSize; }
+    public static int videoPosition() { return videoPosition; }
     public static void setHudEnabled(boolean v) { hudEnabled = v; save(); }
     public static void setHudCorner(int v) { hudCorner = v; save(); }
     public static void setHudAlways(boolean v) { hudAlways = v; save(); }
+    public static void setVideoEnabled(boolean v) { videoEnabled = v; save(); }
+    public static void setVideoSize(int v) { videoSize = v; save(); }
+    public static void setVideoPosition(int v) { videoPosition = v; save(); }
 
     public static synchronized void load() {
         Properties p = new Properties();
@@ -47,6 +56,9 @@ public final class ClientConfig {
         hudEnabled = Boolean.parseBoolean(p.getProperty("hud.enabled", "true"));
         hudCorner = parseInt(p.getProperty("hud.corner", "1"), 1);
         hudAlways = Boolean.parseBoolean(p.getProperty("hud.always", "false"));
+        videoEnabled = Boolean.parseBoolean(p.getProperty("video.enabled", "false"));
+        videoSize = Math.clamp(parseInt(p.getProperty("video.size", "25"), 25), 1, 50);
+        videoPosition = parseInt(p.getProperty("video.position", "6"), 6);
         loaded = true;
     }
 
@@ -65,6 +77,9 @@ public final class ClientConfig {
         p.setProperty("hud.enabled", Boolean.toString(hudEnabled));
         p.setProperty("hud.corner", Integer.toString(hudCorner));
         p.setProperty("hud.always", Boolean.toString(hudAlways));
+        p.setProperty("video.enabled", Boolean.toString(videoEnabled));
+        p.setProperty("video.size", Integer.toString(videoSize));
+        p.setProperty("video.position", Integer.toString(videoPosition));
         try (OutputStream out = Files.newOutputStream(PATH)) { p.store(out, "YT Party client config"); } catch (IOException ignored) {}
     }
 
