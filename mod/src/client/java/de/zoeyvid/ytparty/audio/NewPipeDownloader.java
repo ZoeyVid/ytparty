@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public final class NewPipeDownloader extends Downloader {
     private static final Set<String> RESTRICTED = Set.of("connection", "content-length", "expect", "host", "upgrade");
@@ -32,10 +35,12 @@ public final class NewPipeDownloader extends Downloader {
         byte[] body = request.dataToSend();
         builder.method(request.httpMethod(), body != null ? HttpRequest.BodyPublishers.ofByteArray(body) : HttpRequest.BodyPublishers.noBody());
         try {
-            HttpResponse<String> response = CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = CLIENT.sendAsync(builder.build(), HttpResponse.BodyHandlers.ofString()).get(30, TimeUnit.SECONDS);
             return new Response(response.statusCode(), "", response.headers().map(), response.body(), response.uri().toString());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new IOException(e);
+        } catch (ExecutionException | TimeoutException e) {
             throw new IOException(e);
         }
     }

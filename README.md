@@ -51,8 +51,11 @@ relay; each one's server backend is simply ignored while the relay is connected.
 
 1. **Install the client mod** (needs Fabric API) in your `mods/` folder. Open the party UI with the
    keybind (rebindable under Options → Controls) and add a YouTube or ARD Mediathek video URL — that
-   already works solo. Livestreams aren't supported. ARD Mediathek videos that are age‑restricted (FSK)
-   or need a login can't be added, and some are only available from Germany.
+   already works solo. Livestreams aren't supported. ARD Mediathek videos that need a login can't be
+   added, age‑restricted (FSK) ones only late in the evening (as on the website: FSK 16 from 22:00,
+   FSK 18 from 23:00), and some are only available in Germany or the DACH region. With
+   [ffmpeg](https://ffmpeg.org) installed on your `PATH`, the HUD settings can also show the video as a
+   small picture‑in‑picture window, synced to the audio (toggle key `K`).
 2. **To sync with others**, either:
    - **Relay:** enter host / port / password in the in‑game *Relay* screen and connect. Run your own
      with Docker (`relay/compose.yaml` + `relay/Dockerfile`, image `ghcr.io/zoeyvid/ytparty`) — see
