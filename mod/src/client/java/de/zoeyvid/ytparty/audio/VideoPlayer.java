@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 public final class VideoPlayer {
-    public static final int WIDTH = 320, HEIGHT = 180;
+    public static final int WIDTH = 640, HEIGHT = 360;
     private static final int FPS = 20, FRAME = WIDTH * HEIGHT * 4;
 
     private final LongSupplier position;
@@ -15,9 +15,11 @@ public final class VideoPlayer {
     public VideoPlayer(LongSupplier position) { this.position = position; }
 
     public byte[] frame(String url, int seeks) throws IOException {
-        if (session != null && (!session.url.equals(url) || session.seeks != seeks)) stop();
+        if (session != null && (session.closed || !session.url.equals(url) || session.seeks != seeks)) stop();
         if (session == null && url != null) session = new Session(url, seeks, position.getAsLong());
-        return session == null ? null : session.latest.getAndSet(null);
+        if (session == null) return null;
+        session.polled = System.nanoTime();
+        return session.latest.getAndSet(null);
     }
 
     public void stop() {
@@ -34,12 +36,13 @@ public final class VideoPlayer {
         private final Process process;
         private final AtomicReference<byte[]> latest = new AtomicReference<>();
         private volatile boolean closed;
+        private volatile long polled = System.nanoTime();
 
         Session(String url, int seeks, long start) throws IOException {
             this.url = url;
             this.seeks = seeks;
             this.start = start;
-            process = new ProcessBuilder("ffmpeg", "-nostdin", "-loglevel", "error", "-reconnect", "1", "-ss", start + "ms", "-i", url, "-an", "-sn", "-dn",
+            process = new ProcessBuilder("ffmpeg", "-nostdin", "-loglevel", "error", "-reconnect", "1", "-hwaccel", "auto", "-ss", start + "ms", "-i", url, "-an", "-sn", "-dn",
                 "-vf", "fps=" + FPS + ",scale=" + WIDTH + ":" + HEIGHT + ":force_original_aspect_ratio=decrease,pad=" + WIDTH + ":" + HEIGHT + ":-1:-1",
                 "-pix_fmt", "rgba", "-f", "rawvideo", "pipe:1").redirectError(ProcessBuilder.Redirect.DISCARD).start();
             Thread reader = new Thread(this, "ytparty-video");
@@ -54,7 +57,7 @@ public final class VideoPlayer {
                     byte[] pixels = in.readNBytes(FRAME);
                     if (pixels.length < FRAME) return;
                     while (!closed && position.getAsLong() < start + n * 1000 / FPS) Thread.sleep(10);
-                    if (closed) return;
+                    if (closed || System.nanoTime() - polled > 1_000_000_000L) { closed = true; process.destroy(); return; }
                     latest.set(pixels);
                 }
             } catch (IOException | InterruptedException ignored) {}

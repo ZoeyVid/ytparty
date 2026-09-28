@@ -82,7 +82,7 @@ public final class MusicPlayer {
     private static Media youtube(String identifier) throws Exception {
         if (!newPipeReady) { NewPipe.init(new NewPipeDownloader()); newPipeReady = true; }
         StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, identifier);
-        return new Media(info.getName(), live(info) ? null : bestAudioUrl(info), smallestVideoUrl(info));
+        return new Media(info.getName(), live(info) ? null : bestAudioUrl(info), videoUrl(info));
     }
 
     private static synchronized void forget(String identifier) { RESOLVED.remove(identifier); }
@@ -96,11 +96,11 @@ public final class MusicPlayer {
         return best == null ? null : best.getContent();
     }
 
-    private static String smallestVideoUrl(StreamInfo info) {
+    private static String videoUrl(StreamInfo info) {
         VideoStream best = null;
         for (VideoStream stream : info.getVideoOnlyStreams()) {
-            if (stream.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP || stream.getContent() == null || stream.getContent().isBlank() || stream.getHeight() < VideoPlayer.HEIGHT) continue;
-            if (best == null || stream.getHeight() < best.getHeight()) best = stream;
+            if (stream.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP || stream.getContent() == null || stream.getContent().isBlank()) continue;
+            if (best == null || (best.getHeight() < VideoPlayer.HEIGHT ? stream.getHeight() > best.getHeight() : stream.getHeight() >= VideoPlayer.HEIGHT && stream.getHeight() < best.getHeight())) best = stream;
         }
         return best == null ? null : best.getContent();
     }

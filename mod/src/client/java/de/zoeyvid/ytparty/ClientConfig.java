@@ -19,6 +19,7 @@ public final class ClientConfig {
     private static int hudCorner = 1;
     private static boolean hudAlways = false;
     private static boolean videoEnabled = false;
+    private static int videoSize = 160;
 
     private ClientConfig() {}
 
@@ -28,10 +29,12 @@ public final class ClientConfig {
     public static int hudCorner() { return hudCorner; }
     public static boolean hudAlways() { return hudAlways; }
     public static boolean videoEnabled() { return videoEnabled; }
+    public static int videoSize() { return videoSize; }
     public static void setHudEnabled(boolean v) { hudEnabled = v; save(); }
     public static void setHudCorner(int v) { hudCorner = v; save(); }
     public static void setHudAlways(boolean v) { hudAlways = v; save(); }
     public static void setVideoEnabled(boolean v) { videoEnabled = v; save(); }
+    public static void setVideoSize(int v) { videoSize = v; save(); }
 
     public static synchronized void load() {
         Properties p = new Properties();
@@ -51,6 +54,7 @@ public final class ClientConfig {
         hudCorner = parseInt(p.getProperty("hud.corner", "1"), 1);
         hudAlways = Boolean.parseBoolean(p.getProperty("hud.always", "false"));
         videoEnabled = Boolean.parseBoolean(p.getProperty("video.enabled", "false"));
+        videoSize = parseInt(p.getProperty("video.size", "160"), 160);
         loaded = true;
     }
 
@@ -70,6 +74,7 @@ public final class ClientConfig {
         p.setProperty("hud.corner", Integer.toString(hudCorner));
         p.setProperty("hud.always", Boolean.toString(hudAlways));
         p.setProperty("video.enabled", Boolean.toString(videoEnabled));
+        p.setProperty("video.size", Integer.toString(videoSize));
         try (OutputStream out = Files.newOutputStream(PATH)) { p.store(out, "YT Party client config"); } catch (IOException ignored) {}
     }
 

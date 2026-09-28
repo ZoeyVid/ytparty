@@ -26,7 +26,8 @@ public final class YtPartyClient implements ClientModInitializer {
         ClientConfig.load();
         ClientSync.register();
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("ytparty", "now_playing"), new NowPlayingHud());
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("ytparty", "video"), new VideoHud());
+        VideoHud videoHud = new VideoHud();
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("ytparty", "video"), videoHud);
 
         KeyMapping open = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.ytparty.open", InputConstants.KEY_J, KeyMapping.Category.MISC));
@@ -45,6 +46,7 @@ public final class YtPartyClient implements ClientModInitializer {
         });
 
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+            ScreenEvents.afterBackground(screen).register((s, g, mouseX, mouseY, delta) -> videoHud.draw(g));
             if (screen instanceof TitleScreen)
                 Screens.getWidgets(screen).add(Button.builder(Component.literal("YT Party"),
                     b -> client.setScreenAndShow(new PlaylistScreen())).bounds(4, 4, 80, 20).build());
