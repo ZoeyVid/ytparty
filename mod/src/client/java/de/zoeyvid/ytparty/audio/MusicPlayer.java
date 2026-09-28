@@ -20,13 +20,19 @@ import org.schabi.newpipe.extractor.stream.AudioStream;
 import org.schabi.newpipe.extractor.stream.DeliveryMethod;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
 import org.schabi.newpipe.extractor.stream.StreamType;
+import org.schabi.newpipe.extractor.stream.VideoStream;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Objects;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -42,6 +48,7 @@ public final class MusicPlayer {
     private AudioTrack lastTrack;
     private volatile boolean decodeFinished;
     private volatile long seekTarget = -1;
+    private final AtomicInteger seeks = new AtomicInteger();
 
     private static final ExecutorService RESOLVER = Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "ytparty-resolve"); t.setDaemon(true); return t; });
     private static boolean newPipeReady;
@@ -65,7 +72,8 @@ public final class MusicPlayer {
         pump.start();
     }
 
-    record Media(String title, String url) {}
+    record Media(String title, String url, NavigableMap<Integer, Video> videos) {}
+    public record Video(String url, int width, int height) {}
 
     private static synchronized Media media(String identifier) throws Exception {
         Media cached = RESOLVED.get(identifier);
@@ -79,7 +87,7 @@ public final class MusicPlayer {
     private static Media youtube(String identifier) throws Exception {
         if (!newPipeReady) { NewPipe.init(new NewPipeDownloader()); newPipeReady = true; }
         StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, identifier);
-        return new Media(info.getName(), live(info) ? null : bestAudioUrl(info));
+        return new Media(info.getName(), live(info) ? null : bestAudioUrl(info), videoUrls(info));
     }
 
     private static synchronized void forget(String identifier) { RESOLVED.remove(identifier); }
@@ -91,6 +99,15 @@ public final class MusicPlayer {
             if (best == null || stream.getAverageBitrate() > best.getAverageBitrate()) best = stream;
         }
         return best == null ? null : best.getContent();
+    }
+
+    private static NavigableMap<Integer, Video> videoUrls(StreamInfo info) {
+        NavigableMap<Integer, Video> videos = new TreeMap<>();
+        for (VideoStream stream : info.getVideoOnlyStreams()) {
+            if (stream.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP || stream.getContent() == null || stream.getContent().isBlank()) continue;
+            videos.putIfAbsent(stream.getHeight(), new Video(stream.getContent(), stream.getWidth(), stream.getHeight()));
+        }
+        return videos;
     }
 
     private static boolean live(StreamInfo info) {
@@ -127,10 +144,10 @@ public final class MusicPlayer {
     private void load(String identifier, Consumer<String> onTitle) {
         Media media;
         try { media = media(identifier); } catch (Exception e) { failed(); return; }
-        if (media.url() == null) { failed(); return; }
+        if (media.url() == null || ArdMediathek.id(identifier) != null && ArdMediathek.geoBlocked(media.url())) { failed(); return; }
         manager.loadItem(media.url(), new AudioLoadResultHandler() {
-            public void trackLoaded(AudioTrack track) { start(track, media.title(), onTitle); }
-            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) failed(); else start(pick(list), media.title(), onTitle); }
+            public void trackLoaded(AudioTrack track) { start(track, media, onTitle); }
+            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) failed(); else start(pick(list), media, onTitle); }
             public void noMatches() { failed(); }
             public void loadFailed(FriendlyException e) { failed(); }
         });
@@ -149,12 +166,14 @@ public final class MusicPlayer {
         seekTarget = -1;
         out.requestFlush();
         player.playTrack(track);
+        seeks.incrementAndGet();
     }
 
-    private void start(AudioTrack track, String title, Consumer<String> onTitle) {
+    private void start(AudioTrack track, Media media, Consumer<String> onTitle) {
+        track.setUserData(media);
         lastTrack = track;
         begin(track);
-        if (onTitle != null) onTitle.accept(title != null ? title : track.getInfo().title);
+        if (onTitle != null) onTitle.accept(media.title() != null ? media.title() : track.getInfo().title);
     }
 
     public void repeatCurrent() { mayRetry = true; if (lastTrack != null) begin(lastTrack.makeClone()); }
@@ -170,7 +189,7 @@ public final class MusicPlayer {
 
     public void setPosition(long ms) {
         AudioTrack t = player.getPlayingTrack();
-        if (t != null && t.isSeekable()) { long p = Math.max(0, Math.min(t.getDuration() - 1, ms)); t.setPosition(p); seekTarget = p; out.requestFlush(); }
+        if (t != null && t.isSeekable()) { long p = Math.max(0, Math.min(t.getDuration() - 1, ms)); t.setPosition(p); seekTarget = p; seeks.incrementAndGet(); out.requestFlush(); }
     }
 
     public long position() { AudioTrack t = player.getPlayingTrack(); return t != null ? Math.max(0, t.getPosition() - out.bufferedAhead()) : 0; }
@@ -179,6 +198,12 @@ public final class MusicPlayer {
     public void setPaused(boolean paused) { player.setPaused(paused); out.requestPause(paused); }
     public boolean isPaused() { return player.isPaused(); }
     public boolean seeking() { return seekTarget >= 0; }
+    public int seeks() { return seeks.get(); }
+    public Video video(int height) {
+        AudioTrack t = player.getPlayingTrack();
+        NavigableMap<Integer, Video> videos = t != null ? ((Media) t.getUserData()).videos() : Collections.emptyNavigableMap();
+        return videos.isEmpty() ? null : Objects.requireNonNullElse(videos.ceilingEntry(height), videos.lastEntry()).getValue();
+    }
     public void stop() { decodeFinished = false; player.stopTrack(); out.requestFlush(); }
     public void setVolume(int v) { out.setGain(Math.clamp(v, 0, 200) / 100f); }
 
