@@ -54,10 +54,10 @@ public final class PlaylistScreen extends Screen {
         canEdit = !c.hasParty() || c.canManage();
         urlField = new EditBox(this.font, left, top, 200, 20, Component.literal("YouTube URL"));
         urlField.setMaxLength(2048);
-        urlField.setHint(Component.literal("YouTube video URL"));
+        urlField.setHint(Component.literal("YouTube or ARD Mediathek URL"));
         urlField.setValue(savedUrl);
         urlField.setEditable(canEdit);
-        urlField.setTooltip(Tooltip.create(Component.literal("Paste a YouTube video URL, then Add")));
+        urlField.setTooltip(Tooltip.create(Component.literal("Paste a YouTube or ARD Mediathek video URL, then Add")));
         addRenderableWidget(urlField);
         btn("Add", () -> {
             String text = urlField.getValue().trim();
