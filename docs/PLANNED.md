@@ -9,16 +9,17 @@ toggle‑sync pattern, and direct HUD drawing.
 
 | Feature | Effort | Protocol? |
 |---|---|---|
-| Livestream playback | High (blocked upstream) | no |
+| Livestreams without ffmpeg | High (blocked upstream) | no |
 | Playlist‑URL loading (add **all** tracks) | Low | no |
 | Shuffle | Low | optional |
 | "Who added" a track — player heads | Low–Medium | tiny |
 | Action log (who paused / skipped / played) | Low–Medium | small |
 | Skip‑voting ＋ open‑add mode | Medium–High | yes |
 
-## Livestream playback
+## Livestreams without ffmpeg
 
-Livestreams are **rejected on purpose** — adding one reports that it isn't supported. The blocker is in
+With `ffmpeg` installed, livestreams play through it (each client at its own live point). Without it they
+are **rejected on purpose** — adding one reports that ffmpeg is needed. Playing them in‑JVM is blocked in
 lavaplayer, not here: its HLS support (`HlsStreamTrack` → `MpegTsM3uStreamAudioTrack`) only reads
 MPEG‑TS segments carrying ADTS AAC, while YouTube ships fMP4 segments for live. That path yields zero
 audio frames and ends the track immediately, which previously looked like silence with a restart every
@@ -33,8 +34,9 @@ which is why it isn't built.
 
 Add **all** tracks of a YouTube playlist URL at once, as an explicit, opt‑in action. Right now a
 playlist URL adds only its **first video** everywhere — on purpose, so pasting one link can't silently
-balloon into hundreds of tracks. The source manager *does* resolve playlists, and `SET_PLAYLIST` already
-sends a whole list in one frame, so this is client‑only: on a deliberate "add all" path, expand the
+balloon into hundreds of tracks. The resolver already expands playlists (NewPipe's `PlaylistInfo` for
+YouTube, `yt-dlp -I 1` for other sites) and keeps only the first entry, and `SET_PLAYLIST` already sends
+a whole list in one frame, so this is client‑only: on a deliberate "add all" path, expand the
 link, combine with the current tracks, cap at ≤500, send one `SET_PLAYLIST`. The point is that it stays
 an intentional choice — never the silent expansion that used to happen.
 

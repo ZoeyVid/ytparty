@@ -2,7 +2,6 @@ package de.zoeyvid.ytparty.audio;
 
 import org.lwjgl.openal.AL;
 import org.lwjgl.openal.ALC;
-import org.lwjgl.openal.ALCCapabilities;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
@@ -71,8 +70,8 @@ final class OpenAlOutput {
         long ctx = alcGetCurrentContext();
         if (ctx == 0L) return false;
         if (ctx != context || source == 0 || !alIsSource(source)) {
-            ALCCapabilities alcCaps = ALC.createCapabilities(alcGetContextsDevice(ctx));
-            AL.setCurrentThread(AL.createCapabilities(alcCaps));
+            try { AL.setCurrentThread(AL.createCapabilities(ALC.createCapabilities(alcGetContextsDevice(ctx)))); }
+            catch (IllegalStateException e) { return false; }
             context = ctx;
             source = alGenSources();
             free.clear();

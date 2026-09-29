@@ -9,29 +9,37 @@ import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
 import com.sedmelluq.discord.lavaplayer.source.http.HttpAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
+import com.sedmelluq.discord.lavaplayer.tools.Units;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
+import com.sedmelluq.discord.lavaplayer.track.InternalAudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.playback.MutableAudioFrame;
 
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.ServiceList;
+import org.schabi.newpipe.extractor.playlist.PlaylistInfo;
 import org.schabi.newpipe.extractor.stream.AudioStream;
 import org.schabi.newpipe.extractor.stream.DeliveryMethod;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
+import org.schabi.newpipe.extractor.stream.StreamInfoItem;
 import org.schabi.newpipe.extractor.stream.StreamType;
 import org.schabi.newpipe.extractor.stream.VideoStream;
+import org.schabi.newpipe.extractor.utils.Utils;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -44,16 +52,18 @@ public final class MusicPlayer {
     private final OpenAlOutput out = new OpenAlOutput(FORMAT.sampleRate, FORMAT.maximumChunkSize());
     private volatile boolean running = true;
     private Runnable onEnd = () -> {};
-    private Runnable onError = () -> {};
+    private Consumer<String> onError = reason -> {};
     private AudioTrack lastTrack;
     private volatile boolean decodeFinished;
     private volatile long seekTarget = -1;
     private final AtomicInteger seeks = new AtomicInteger();
 
-    private static final ExecutorService RESOLVER = Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "ytparty-resolve"); t.setDaemon(true); return t; });
-    private static boolean newPipeReady;
-    private static final Map<String, Media> RESOLVED = new HashMap<>();
-    private String playing;
+    private static final ExecutorService RESOLVER = executor("ytparty-resolve"), ADDER = executor("ytparty-add");
+    private static volatile boolean newPipeReady;
+    private static final Map<String, Media> RESOLVED = new ConcurrentHashMap<>();
+    private static final Set<String> INSTALLED = ConcurrentHashMap.newKeySet();
+    public static volatile boolean otherSites;
+    private volatile String playing;
     private boolean mayRetry;
 
     public MusicPlayer() {
@@ -62,8 +72,10 @@ public final class MusicPlayer {
         manager.registerSourceManager(new HttpAudioSourceManager());
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
-                if (reason == AudioTrackEndReason.FINISHED) decodeFinished = true;
-                else if (reason == AudioTrackEndReason.LOAD_FAILED) failed();
+                if (reason != AudioTrackEndReason.FINISHED && reason != AudioTrackEndReason.LOAD_FAILED) return;
+                boolean played = seekTarget >= 0 || ((InternalAudioTrack) t).getActiveExecutor().getAudioBuffer().hasReceivedFrames();
+                if (reason == AudioTrackEndReason.FINISHED && played && !t.getInfo().isStream) decodeFinished = true;
+                else { if (played) mayRetry = true; failed(null); }
             }
         });
         Thread pump = new Thread(this::pumpLoop, "ytparty-audio");
@@ -72,30 +84,59 @@ public final class MusicPlayer {
         pump.start();
     }
 
-    record Media(String title, String url, NavigableMap<Integer, Video> videos) {}
-    public record Video(String url, int width, int height) {}
+    record Media(String identifier, String title, String url, NavigableMap<Integer, Video> videos, AudioTrack track) {}
+    public record Video(String url, int width, int height, String headers) {}
 
     static final class Unplayable extends Exception {
         Unplayable(String reason) { super(reason); }
     }
 
-    private static synchronized Media media(String identifier) throws Exception {
+    private static ExecutorService executor(String name) { return Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, name); t.setDaemon(true); return t; }); }
+
+    private static Media media(String identifier) throws Exception {
+        if (!identifier.matches("(?i)https?://\\S+")) throw new Unplayable("Only http(s) URLs can be played");
         Media cached = RESOLVED.get(identifier);
-        if (cached != null) return cached;
+        if (cached != null && (otherSites || ArdMediathek.id(identifier) != null || isYoutube(identifier))) return cached;
         String ard = ArdMediathek.id(identifier);
-        Media media = ard != null ? ArdMediathek.resolve(ard) : youtube(identifier);
+        Media media = ard != null ? ArdMediathek.resolve(identifier, ard) : isYoutube(identifier) ? youtube(identifier) : YtDlp.resolve(identifier);
         RESOLVED.put(identifier, media);
+        RESOLVED.put(media.identifier(), media);
         return media;
     }
 
-    private static Media youtube(String identifier) throws Exception {
-        if (!newPipeReady) { NewPipe.init(new NewPipeDownloader()); newPipeReady = true; }
-        StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, identifier.replaceAll("(?<=[?&])list=[^&#]*&?", ""));
-        if (live(info)) throw new Unplayable("Livestreams aren't supported");
-        return new Media(info.getName(), bestAudioUrl(info), videoUrls(info));
+    private static boolean isYoutube(String url) throws Exception {
+        return ServiceList.YouTube.getStreamLHFactory().acceptUrl(withoutList(url)) || ServiceList.YouTube.getPlaylistLHFactory().acceptUrl(url);
     }
 
-    private static synchronized void forget(String identifier) { RESOLVED.remove(identifier); }
+    private static String withoutList(String url) { return url.replaceAll("(?<=[?&])list=[^&#]*&?", ""); }
+
+    private static Media youtube(String identifier) throws Exception {
+        if (!newPipeReady) { NewPipe.init(new NewPipeDownloader()); newPipeReady = true; }
+        String video = withoutList(identifier);
+        if (!ServiceList.YouTube.getStreamLHFactory().acceptUrl(video)) {
+            List<StreamInfoItem> items = PlaylistInfo.getInfo(ServiceList.YouTube, identifier).getRelatedItems();
+            if (items.isEmpty()) throw new Unplayable("This YouTube playlist is empty");
+            identifier = video = items.getFirst().getUrl();
+        }
+        StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, video);
+        if (!live(info)) return new Media(identifier, info.getName(), bestAudioUrl(info), videoUrls(info), null);
+        if (!installed("ffmpeg", "-version")) throw new Unplayable("Livestreams need ffmpeg installed");
+        String url = Utils.isNullOrEmpty(info.getHlsUrl()) ? info.getDashMpdUrl() : info.getHlsUrl();
+        if (Utils.isNullOrEmpty(url)) throw new Unplayable("This YouTube livestream has no playable stream");
+        return new Media(identifier, info.getName(), url, Collections.emptyNavigableMap(), new FfmpegAudioTrack(new AudioTrackInfo(info.getName(), "", Units.DURATION_MS_UNKNOWN, url, true, url), ""));
+    }
+
+    static boolean installed(String command, String versionFlag) {
+        if (INSTALLED.contains(command)) return true;
+        try {
+            Process process = new ProcessBuilder(command, versionFlag).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+            if (process.waitFor(10, TimeUnit.SECONDS) && process.exitValue() == 0) INSTALLED.add(command);
+            process.destroyForcibly();
+        } catch (Exception ignored) {}
+        return INSTALLED.contains(command);
+    }
+
+    private static void forget(String identifier) { RESOLVED.remove(identifier); }
 
     private static String bestAudioUrl(StreamInfo info) throws Unplayable {
         AudioStream best = null;
@@ -111,7 +152,7 @@ public final class MusicPlayer {
         NavigableMap<Integer, Video> videos = new TreeMap<>();
         for (VideoStream stream : info.getVideoOnlyStreams()) {
             if (stream.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP || stream.getContent() == null || stream.getContent().isBlank()) continue;
-            videos.putIfAbsent(stream.getHeight(), new Video(stream.getContent(), stream.getWidth(), stream.getHeight()));
+            videos.putIfAbsent(stream.getHeight(), new Video(stream.getContent(), stream.getWidth(), stream.getHeight(), ""));
         }
         return videos;
     }
@@ -121,42 +162,47 @@ public final class MusicPlayer {
     }
 
     public void setOnEnd(Runnable r) { onEnd = r != null ? r : () -> {}; }
-    public void setOnError(Runnable r) { onError = r != null ? r : () -> {}; }
+    public void setOnError(Consumer<String> c) { onError = c != null ? c : reason -> {}; }
 
     public void resolveAll(String identifier, Consumer<List<String[]>> onDone) {
-        RESOLVER.execute(() -> {
-            try { onDone.accept(List.<String[]>of(new String[]{identifier, media(identifier).title()})); }
+        ADDER.execute(() -> {
+            try { Media media = media(identifier); onDone.accept(List.<String[]>of(new String[]{media.identifier(), media.title()})); }
             catch (Exception e) { onDone.accept(List.of()); }
         });
     }
 
     public void resolve(String identifier, BiConsumer<String, String> onResolved, Consumer<String> onFail) {
-        RESOLVER.execute(() -> {
-            try { onResolved.accept(identifier, media(identifier).title()); }
+        ADDER.execute(() -> {
+            try { Media media = media(identifier); onResolved.accept(media.identifier(), media.title()); }
             catch (Exception e) { onFail.accept(e instanceof Unplayable ? e.getMessage() : null); }
         });
     }
 
     public void playIdentifier(String identifier, Consumer<String> onTitle) {
         playing = identifier;
+        lastTrack = null;
         mayRetry = true;
+        stop();
         RESOLVER.execute(() -> load(identifier, onTitle));
     }
 
     private void load(String identifier, Consumer<String> onTitle) {
+        if (!identifier.equals(playing)) return;
         Media media;
-        try { media = media(identifier); } catch (Exception e) { failed(); return; }
-        if (ArdMediathek.id(identifier) != null && ArdMediathek.geoBlocked(media.url())) { failed(); return; }
+        try { media = media(identifier); } catch (Exception e) { if (identifier.equals(playing)) failed(e instanceof Unplayable ? e.getMessage() : null); return; }
+        if (!identifier.equals(playing)) return;
+        if (ArdMediathek.id(identifier) != null && ArdMediathek.geoBlocked(media.url())) { failed(null); return; }
+        if (media.track() != null) { start(media.track().makeClone(), media, onTitle); return; }
         manager.loadItem(media.url(), new AudioLoadResultHandler() {
-            public void trackLoaded(AudioTrack track) { start(track, media, onTitle); }
-            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) failed(); else start(pick(list), media, onTitle); }
-            public void noMatches() { failed(); }
-            public void loadFailed(FriendlyException e) { failed(); }
+            public void trackLoaded(AudioTrack track) { if (identifier.equals(playing)) start(track, media, onTitle); }
+            public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) noMatches(); else trackLoaded(pick(list)); }
+            public void noMatches() { if (identifier.equals(playing)) failed(null); }
+            public void loadFailed(FriendlyException e) { if (identifier.equals(playing)) failed(null); }
         });
     }
 
-    private void failed() {
-        if (playing == null || !mayRetry) { onError.run(); return; }
+    private void failed(String reason) {
+        if (playing == null || !mayRetry || reason != null) { stop(); onError.accept(reason); return; }
         mayRetry = false;
         String identifier = playing;
         forget(identifier);
@@ -194,19 +240,25 @@ public final class MusicPlayer {
         if (t != null && t.isSeekable()) { long p = Math.max(0, Math.min(t.getDuration() - 1, ms)); t.setPosition(p); seekTarget = p; seeks.incrementAndGet(); out.requestFlush(); }
     }
 
-    public long position() { AudioTrack t = player.getPlayingTrack(); return t != null ? Math.max(0, t.getPosition() - out.bufferedAhead()) : 0; }
+    public long position() {
+        long target = seekTarget;
+        if (target >= 0) return target;
+        AudioTrack t = player.getPlayingTrack();
+        return t != null ? Math.max(0, t.getPosition() - out.bufferedAhead()) : 0;
+    }
     public long duration() { AudioTrack t = player.getPlayingTrack(); return t != null ? t.getDuration() : 0; }
 
     public void setPaused(boolean paused) { player.setPaused(paused); out.requestPause(paused); }
     public boolean isPaused() { return player.isPaused(); }
     public boolean seeking() { return seekTarget >= 0; }
+    public boolean live() { AudioTrack t = player.getPlayingTrack(); return t != null && t.getInfo().isStream; }
     public int seeks() { return seeks.get(); }
     public Video video(int height) {
         AudioTrack t = player.getPlayingTrack();
         NavigableMap<Integer, Video> videos = t != null ? ((Media) t.getUserData()).videos() : Collections.emptyNavigableMap();
         return videos.isEmpty() ? null : Objects.requireNonNullElse(videos.ceilingEntry(height - height / 10), videos.lastEntry()).getValue();
     }
-    public void stop() { decodeFinished = false; player.stopTrack(); out.requestFlush(); }
+    public void stop() { decodeFinished = false; seekTarget = -1; player.stopTrack(); out.requestFlush(); }
     public void setVolume(int v) { out.setGain(Math.clamp(v, 0, 200) / 100f); }
 
     public void close() { running = false; }

@@ -11,8 +11,11 @@ import de.zoeyvid.ytparty.server.party.Party;
 import net.minecraft.client.Minecraft;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 public final class PlayerController {
     public static final PlayerController INSTANCE = new PlayerController();
@@ -51,8 +54,10 @@ public final class PlayerController {
     private int nextLocalId = 1;
     private List<SponsorBlock.Segment> segments = List.of();
     private String segmentsUri = "";
+    private int carryIndex = -1;
+    private boolean carryPaused;
 
-    private PlayerController() { sink = localSink; audio.setOnEnd(() -> Minecraft.getInstance().execute(this::onTrackEnded)); audio.setOnError(() -> Minecraft.getInstance().execute(this::onTrackFailed)); }
+    private PlayerController() { sink = localSink; audio.setOnEnd(() -> Minecraft.getInstance().execute(this::onTrackEnded)); audio.setOnError(reason -> Minecraft.getInstance().execute(() -> onTrackFailed(reason))); }
 
     public void setBackend(Sink s) { backend = s; sink = localSink; }
 
@@ -93,7 +98,7 @@ public final class PlayerController {
     }
 
     private void sponsorBlockTick() {
-        if (paused || currentIndex < 0 || audio.duration() <= 0 || audio.seeking() || !segmentsUri.equals(loadedUri)) return;
+        if (paused || currentIndex < 0 || audio.duration() <= 0 || audio.live() || audio.seeking() || !segmentsUri.equals(loadedUri)) return;
         byte flags = hasParty() ? partySbFlags : ClientConfig.sbFlags();
         if ((flags & SponsorBlock.FLAG_ENABLED) == 0) return;
         long pos = audio.position();
@@ -131,7 +136,7 @@ public final class PlayerController {
         audio.resolve(url, (uri, title) -> Minecraft.getInstance().execute(() -> {
             if (ctrl()) sink.send(SyncProtocol.add(uri, title));
             if (onDone != null) onDone.run();
-        }), reason -> Minecraft.getInstance().execute(() -> { ClientSync.message(reason != null ? reason : "Couldn't add this URL (YouTube and ARD Mediathek videos only)"); if (onDone != null) onDone.run(); }));
+        }), reason -> Minecraft.getInstance().execute(() -> { ClientSync.message(reason != null ? reason : "Couldn't add this URL"); if (onDone != null) onDone.run(); }));
     }
 
     public void removeAt(int i) {
@@ -156,23 +161,20 @@ public final class PlayerController {
 
     public long position() { return audio.position(); }
     public long duration() { return audio.duration(); }
+    public boolean live() { return audio.live(); }
     public MusicPlayer.Video video(int height) { return audio.video(height); }
     public int seeks() { return audio.seeks(); }
 
     public void createParty() {
         if (backend == null) return;
         backend.send(SyncProtocol.create());
-        List<Track> carry = playlist.view();
-        if (!carry.isEmpty()) backend.send(SyncProtocol.setPlaylist(carry));
-        Track cur = playlist.get(currentIndex);
-        if (cur != null) {
-            backend.send(SyncProtocol.setTrack(cur.id()));
-            backend.send(SyncProtocol.setPosition(audio.position()));
-            if (paused) backend.send(SyncProtocol.setPaused(true));
-        }
         backend.send(SyncProtocol.setRepeat(repeatOne));
         backend.send(SyncProtocol.setAutoRemove(autoRemovePlayed));
         backend.send(SyncProtocol.setSponsorBlock(ClientConfig.sbFlags()));
+        List<Track> carry = playlist.view();
+        if (!carry.isEmpty()) backend.send(SyncProtocol.setPlaylist(carry));
+        carryIndex = playlist.get(currentIndex) != null && loadedUri != null ? currentIndex : -1;
+        carryPaused = paused;
     }
 
     public void applyPlaylistText(String text, Runnable onDone) {
@@ -182,16 +184,21 @@ public final class PlayerController {
         List<List<String[]>> slots = new ArrayList<>();
         for (int i = 0; i < urls.size(); i++) slots.add(List.of());
         AtomicInteger remaining = new AtomicInteger(urls.size());
+        Map<String, String> known = new HashMap<>();
+        for (Track t : playlist.view()) known.putIfAbsent(t.uri(), t.title());
         for (int i = 0; i < urls.size(); i++) {
             int idx = i;
-            audio.resolveAll(urls.get(i), res -> {
+            String url = urls.get(i);
+            Consumer<List<String[]>> done = res -> {
                 slots.set(idx, res);
                 if (remaining.decrementAndGet() == 0) Minecraft.getInstance().execute(() -> {
                     List<Track> out = new ArrayList<>();
                     for (List<String[]> slot : slots) for (String[] p : slot) if (out.size() < 500) out.add(new Track(nextLocalId++, p[0], p[1], ""));
                     setPlaylistResolved(out, onDone);
                 });
-            });
+            };
+            if (known.containsKey(url)) done.accept(List.<String[]>of(new String[]{url, known.get(url)}));
+            else audio.resolveAll(url, done);
         }
     }
 
@@ -225,9 +232,9 @@ public final class PlayerController {
 
     private void onTrackEnded() { if (ctrl()) sink.send(SyncProtocol.trackEnded(partyGeneration)); }
 
-    private void onTrackFailed() {
+    private void onTrackFailed(String reason) {
         Track t = playlist.get(currentIndex);
-        ClientSync.message("Couldn't play" + (t != null ? " \u201c" + t.title() + "\u201d" : " this track"));
+        ClientSync.message("Couldn't play" + (t != null ? " \u201c" + t.title() + "\u201d" : " this track") + (reason != null ? ": " + reason : ""));
         if (!hasParty() && ctrl()) { Track n = playlist.get(currentIndex + 1); if (n != null) sink.send(SyncProtocol.setTrack(n.id())); }
     }
 
@@ -250,6 +257,18 @@ public final class PlayerController {
         playlist.replaceAll(s.tracks());
         currentIndex = s.currentIndex();
         if (partyId.isEmpty()) ClientConfig.save();
+        if (carryIndex >= 0) {
+            if (s.tracks().isEmpty()) return;
+            Track carried = playlist.get(carryIndex);
+            if (carried == null || !carried.uri().equals(loadedUri)) carryIndex = -1;
+            else if (currentIndex != carryIndex) { sink.send(SyncProtocol.setTrack(carried.id())); return; }
+            else {
+                sink.send(SyncProtocol.reanchor(partyGeneration, audio.position()));
+                if (carryPaused) sink.send(SyncProtocol.setPaused(true));
+                carryIndex = -1;
+                return;
+            }
+        }
         Track t = playlist.get(currentIndex);
         if (t == null) { loadedUri = null; segments = List.of(); segmentsUri = ""; pendingJoinElapsed = -1; audio.stop(); return; }
         boolean trackChanged = false;
@@ -260,7 +279,7 @@ public final class PlayerController {
         audio.setPaused(paused);
     }
 
-    public void onPartyLeft() { inParty = false; myLevel = MANAGE; isPublic = false; partyGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }
+    public void onPartyLeft() { carryIndex = -1; inParty = false; myLevel = MANAGE; isPublic = false; partyGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }
 
     private void syncLocalParty() {
         Party p = localSink.party;

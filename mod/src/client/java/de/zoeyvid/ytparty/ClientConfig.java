@@ -1,5 +1,6 @@
 package de.zoeyvid.ytparty;
 
+import de.zoeyvid.ytparty.audio.MusicPlayer;
 import de.zoeyvid.ytparty.audio.SponsorBlock;
 import de.zoeyvid.ytparty.relay.RelayClient;
 import net.fabricmc.loader.api.FabricLoader;
@@ -60,6 +61,7 @@ public final class ClientConfig {
         videoSize = Math.clamp(parseInt(p.getProperty("video.size", "25"), 25), 1, 50);
         videoPosition = parseInt(p.getProperty("video.position", "5"), 5);
         if (videoPosition < 0 || videoPosition > 8 || videoPosition == 4) videoPosition = 5;
+        MusicPlayer.otherSites = Boolean.parseBoolean(p.getProperty("other-sites", "false"));
         loaded = true;
     }
 
@@ -81,6 +83,7 @@ public final class ClientConfig {
         p.setProperty("video.enabled", Boolean.toString(videoEnabled));
         p.setProperty("video.size", Integer.toString(videoSize));
         p.setProperty("video.position", Integer.toString(videoPosition));
+        p.setProperty("other-sites", Boolean.toString(MusicPlayer.otherSites));
         try (OutputStream out = Files.newOutputStream(PATH)) { p.store(out, "YT Party client config"); } catch (IOException ignored) {}
     }
 

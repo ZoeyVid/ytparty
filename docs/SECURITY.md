@@ -44,4 +44,7 @@ the compose file (use an `.env` / secret).
 
 The backend (relay operator, or the Minecraft server) sees party membership and playlist contents in
 the clear — the encryption protects the link, not the operator. YouTube and ARD Mediathek URLs are
-resolved and audio is fetched **by each client**, not by the backend.
+resolved and audio is fetched **by each client**, not by the backend. With *Other sites* turned on,
+a party manager can make your client run `yt-dlp` and `ffmpeg` against any http(s) URL they add,
+which shows your IP address to that site and can make your client request hosts in your local
+network; that's why the setting is off by default.

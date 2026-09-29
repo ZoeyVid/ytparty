@@ -57,7 +57,7 @@ public final class PlaylistScreen extends Screen {
         urlField.setHint(Component.literal("YouTube or ARD Mediathek URL"));
         urlField.setValue(savedUrl);
         urlField.setEditable(canEdit);
-        urlField.setTooltip(Tooltip.create(Component.literal("Paste a YouTube or ARD Mediathek video URL, then Add")));
+        urlField.setTooltip(Tooltip.create(Component.literal("Paste a YouTube or ARD Mediathek video URL (other sites: see Settings), then Add; a playlist URL adds its first video")));
         addRenderableWidget(urlField);
         btn("Add", () -> {
             String text = urlField.getValue().trim();
@@ -66,7 +66,7 @@ public final class PlaylistScreen extends Screen {
         btn("Edit list\u2026", () -> this.minecraft.setScreenAndShow(new PlaylistEditScreen()), "Edit the whole playlist as a text list of URLs", left + 246, top, 74);
 
         btn("SponsorBlock\u2026", () -> this.minecraft.setScreenAndShow(new SponsorBlockScreen()), "SponsorBlock segment-skip settings", left, top + 26, 120);
-        btn("HUD\u2026", () -> this.minecraft.setScreenAndShow(new HudScreen()), "Now-Playing HUD settings", left + 124, top + 26, 60);
+        btn("Settings\u2026", () -> this.minecraft.setScreenAndShow(new HudScreen()), "HUD, video and other-site settings", left + 124, top + 26, 60);
         AbstractSliderButton vol = new AbstractSliderButton(left + 188, top + 26, 132, 20, Component.literal("Vol " + c.volume()), c.volume() / 200.0) {
             @Override protected void updateMessage() { setMessage(Component.literal("Vol " + (int) (value * 200))); }
             @Override protected void applyValue() { c.setVolume((int) (value * 200)); }
@@ -78,10 +78,10 @@ public final class PlaylistScreen extends Screen {
         timeline = new Timeline(left, top + 52, 320, 20);
         timeline.setTooltip(Tooltip.create(Component.literal("Seek within the current track")));
         addRenderableWidget(timeline);
-        timeline.active = canEdit;
+        timeline.active = canEdit && !c.live();
 
         btn("\u23EE", c::previous, "Previous track", left, top + 78, 22).active = canEdit;
-        btn("\u21E4", () -> seek(0), "Restart current track", left + 24, top + 78, 22).active = canEdit;
+        btn("\u21E4", () -> seek(0), "Restart current track", left + 24, top + 78, 22).active = canEdit && !c.live();
         btn(c.paused() ? "\u25B6" : "\u23F8", c::togglePause, c.paused() ? "Play" : "Pause", left + 48, top + 78, 22).active = canEdit;
         btn("\u23ED", c::skip, "Skip to next track", left + 72, top + 78, 22).active = canEdit;
         btn("Repeat: " + (c.repeatOne() ? "ON" : "OFF"), c::toggleRepeat, "Repeat the current track", left + 98, top + 78, 74).active = canEdit;
@@ -223,7 +223,7 @@ public final class PlaylistScreen extends Screen {
 
     private String signature() {
         PlayerController c = PlayerController.INSTANCE;
-        return c.hasParty() + "|" + c.partyId() + "|" + c.paused() + "|" + c.currentIndex() + "|" + c.myLevel()
+        return c.hasParty() + "|" + c.partyId() + "|" + c.paused() + "|" + c.currentIndex() + "|" + c.myLevel() + "|" + c.live()
             + "|" + invitesSig(c) + "|" + RelayClient.INSTANCE.connected() + "|" + c.autoRemovePlayed()
             + "|" + c.repeatOne() + "|" + c.partySbFlags() + "|" + c.playlist().version() + "|" + c.publicListVersion();
     }
@@ -244,7 +244,7 @@ public final class PlaylistScreen extends Screen {
         }
 
         @Override protected void updateMessage() {
-            setMessage(Component.literal(fmt(shownPos()) + " / " + fmt(PlayerController.INSTANCE.duration())));
+            setMessage(Component.literal(PlayerController.INSTANCE.live() ? "LIVE" : fmt(shownPos()) + " / " + fmt(PlayerController.INSTANCE.duration())));
         }
 
         @Override protected void applyValue() { updateMessage(); }

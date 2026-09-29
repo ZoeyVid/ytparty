@@ -1,0 +1,79 @@
+package de.zoeyvid.ytparty.audio;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
+import com.sedmelluq.discord.lavaplayer.tools.Units;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Objects;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static de.zoeyvid.ytparty.audio.ArdMediathek.bool;
+import static de.zoeyvid.ytparty.audio.ArdMediathek.integer;
+import static de.zoeyvid.ytparty.audio.ArdMediathek.object;
+import static de.zoeyvid.ytparty.audio.ArdMediathek.string;
+
+final class YtDlp {
+    private static final String HTTP = "[protocol~='^https?$']", HLS = "[protocol^=m3u8]";
+    private static final Pattern DURATION = Pattern.compile("Duration: (?:N/A|(\\d+):(\\d{2}):(\\d{2})\\.(\\d{2}))");
+
+    private YtDlp() {}
+
+    static MusicPlayer.Media resolve(String url) throws Exception {
+        if (!MusicPlayer.otherSites) throw new MusicPlayer.Unplayable("Other sites are turned off (Settings)");
+        if (!MusicPlayer.installed("yt-dlp", "--version") || !MusicPlayer.installed("ffmpeg", "-version")) throw new MusicPlayer.Unplayable("Other sites need yt-dlp and ffmpeg installed");
+        JsonElement info = JsonParser.parseString(output(new ProcessBuilder("yt-dlp", "--ignore-config", "--no-warnings", "--no-playlist", "-I", "1", "-J", "-f", "ba" + HTTP + "/ba" + HLS + "/b" + HTTP + "[height<=?480]/b" + HLS + "[height<=?480]/w" + HTTP + "/w" + HLS, "--", url)
+            .redirectError(ProcessBuilder.Redirect.DISCARD), 60));
+        while (info instanceof JsonObject playlist && playlist.get("entries") instanceof JsonArray entries) info = entries.isEmpty() ? JsonNull.INSTANCE : entries.get(0);
+        if (!(info instanceof JsonObject media) || string(media, "url") == null) throw new MusicPlayer.Unplayable("yt-dlp couldn't read this URL");
+        String audio = string(media, "url"), headers = headers(media), title = Objects.requireNonNullElse(string(media, "title"), url);
+        long duration = bool(media, "is_live") ? Units.DURATION_MS_UNKNOWN : media.get("duration") instanceof JsonPrimitive seconds ? Math.round(seconds.getAsDouble() * 1000) : 0;
+        if (duration == 0) duration = probe(audio, headers);
+        NavigableMap<Integer, MusicPlayer.Video> videos = new TreeMap<>();
+        if (duration != Units.DURATION_MS_UNKNOWN && media.get("formats") instanceof JsonArray formats) for (JsonElement e : formats) if (e instanceof JsonObject format) {
+            int height = integer(format, "height", 0);
+            if (height > 0 && !"none".equals(string(format, "vcodec")) && string(format, "url") != null && Objects.requireNonNullElse(string(format, "protocol"), "").matches("https?|m3u8(_native)?"))
+                videos.put(height, new MusicPlayer.Video(string(format, "url"), integer(format, "width", 0), height, headers(format)));
+        }
+        return new MusicPlayer.Media(Objects.requireNonNullElse(string(media, "webpage_url"), url), title, audio, videos, new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration, audio, duration == Units.DURATION_MS_UNKNOWN, audio), headers));
+    }
+
+    private static String headers(JsonObject format) {
+        StringBuilder headers = new StringBuilder();
+        JsonObject http = object(format, "http_headers");
+        if (http != null) for (Map.Entry<String, JsonElement> header : http.entrySet()) if (header.getValue().isJsonPrimitive()) headers.append(header.getKey()).append(": ").append(header.getValue().getAsString()).append("\r\n");
+        return headers.toString();
+    }
+
+    private static long probe(String url, String headers) throws Exception {
+        Matcher m = DURATION.matcher(output(new ProcessBuilder("ffmpeg", "-nostdin", "-hide_banner", "-protocol_whitelist", FfmpegAudioTrack.PROTOCOLS, "-rw_timeout", "15000000", "-headers", headers, "-i", url).redirectErrorStream(true), 20));
+        if (!m.find()) throw new IOException("ffmpeg couldn't read " + url);
+        return m.group(1) == null ? Units.DURATION_MS_UNKNOWN : ((Long.parseLong(m.group(1)) * 60 + Long.parseLong(m.group(2))) * 60 + Long.parseLong(m.group(3))) * 1000 + Long.parseLong(m.group(4)) * 10;
+    }
+
+    private static String output(ProcessBuilder builder, int seconds) throws Exception {
+        Path file = Files.createTempFile("ytparty", ".out");
+        try {
+            Process process = builder.redirectOutput(file.toFile()).start();
+            if (!process.waitFor(seconds, TimeUnit.SECONDS)) {
+                process.descendants().forEach(ProcessHandle::destroyForcibly);
+                process.destroyForcibly().waitFor();
+                throw new MusicPlayer.Unplayable(builder.command().getFirst() + " timed out");
+            }
+            return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+        } finally { Files.deleteIfExists(file); }
+    }
+}

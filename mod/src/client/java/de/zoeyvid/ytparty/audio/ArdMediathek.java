@@ -29,7 +29,7 @@ final class ArdMediathek {
         return m.matches() ? m.group(1) : null;
     }
 
-    static MusicPlayer.Media resolve(String id) throws Exception {
+    static MusicPlayer.Media resolve(String identifier, String id) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create("https://api.ardmediathek.de/page-gateway/pages/ard/item/" + id + "?embedded=false&mcV6=true")).timeout(Duration.ofSeconds(15)).build();
         HttpResponse<String> response = HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString()).get(15, TimeUnit.SECONDS);
         if (response.statusCode() != 200) throw new IOException("ARD Mediathek API returned " + response.statusCode());
@@ -44,7 +44,7 @@ final class ArdMediathek {
             if (bool(player, "blockedByLoginOnly")) throw new MusicPlayer.Unplayable("This ARD Mediathek video needs a login");
             NavigableMap<Integer, MusicPlayer.Video> videos = mp4s(player);
             if (videos.isEmpty()) throw new MusicPlayer.Unplayable("This ARD Mediathek video has no MP4 version");
-            return new MusicPlayer.Media(title, videos.firstEntry().getValue().url(), videos);
+            return new MusicPlayer.Media(identifier, title, videos.firstEntry().getValue().url(), videos, null);
         }
         throw new IOException("No ARD Mediathek video found");
     }
@@ -71,7 +71,7 @@ final class ArdMediathek {
                 JsonObject audio = media.getAsJsonArray("audios").get(0).getAsJsonObject();
                 if (!"standard".equals(string(audio, "kind"))) continue;
                 int height = integer(media, "maxVResolutionPx", 0);
-                ("deu".equals(string(audio, "languageCode")) ? german : other).putIfAbsent(height > 0 ? height : Integer.MAX_VALUE, new MusicPlayer.Video(string(media, "url"), integer(media, "maxHResolutionPx", 0), height));
+                ("deu".equals(string(audio, "languageCode")) ? german : other).putIfAbsent(height > 0 ? height : Integer.MAX_VALUE, new MusicPlayer.Video(string(media, "url"), integer(media, "maxHResolutionPx", 0), height, ""));
             }
         }
         return german.isEmpty() ? other : german;
@@ -79,8 +79,8 @@ final class ArdMediathek {
 
     private static String normalized(String s) { return s.strip().toLowerCase(Locale.ROOT).replaceAll("[\\s\\-–—]+", " "); }
 
-    private static String string(JsonObject o, String key) { return o.has(key) && o.get(key).isJsonPrimitive() ? o.get(key).getAsString() : null; }
-    private static JsonObject object(JsonObject o, String key) { return o.has(key) && o.get(key).isJsonObject() ? o.getAsJsonObject(key) : null; }
-    private static int integer(JsonObject o, String key, int fallback) { return o.has(key) && o.get(key).isJsonPrimitive() ? o.get(key).getAsInt() : fallback; }
-    private static boolean bool(JsonObject o, String key) { return o.has(key) && o.get(key).isJsonPrimitive() && o.get(key).getAsBoolean(); }
+    static String string(JsonObject o, String key) { return o.has(key) && o.get(key).isJsonPrimitive() ? o.get(key).getAsString() : null; }
+    static JsonObject object(JsonObject o, String key) { return o.has(key) && o.get(key).isJsonObject() ? o.getAsJsonObject(key) : null; }
+    static int integer(JsonObject o, String key, int fallback) { return o.has(key) && o.get(key).isJsonPrimitive() ? o.get(key).getAsInt() : fallback; }
+    static boolean bool(JsonObject o, String key) { return o.has(key) && o.get(key).isJsonPrimitive() && o.get(key).getAsBoolean(); }
 }
