@@ -3,10 +3,11 @@
 ## Model
 
 The client mod plays audio (and, if turned on, a picture‑in‑picture video) and sends small control
-frames; it opens no ports. It starts the system `ffmpeg` (video, livestreams, other sites) and, for
-allowed sites, `yt-dlp` as child processes. To read YouTube's stream URLs, NewPipeExtractor runs
-functions from YouTube's player JavaScript in the bundled Rhino interpreter, without access to Java
-classes. The security surface is the **backend connection** and **who may control a party**.
+frames; it opens no ports. It starts the system `ffmpeg` (video, livestreams, other sites; all audio
+with the slim jar) and, for allowed sites, `yt-dlp` as child processes. To read YouTube's stream
+URLs, NewPipeExtractor runs functions from YouTube's player JavaScript in the bundled Rhino
+interpreter, without access to Java classes. The security surface is the **backend connection** and
+**who may control a party**.
 
 - **On a Minecraft server** (server mod / plugin) the transport is Minecraft's own player connection —
   there is no extra crypto layer, and trust follows the server.

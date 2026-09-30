@@ -33,7 +33,7 @@ jobs:
         run: echo "value=$(date +%Y-%m-%d)-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
       - name: build
         working-directory: mod
-        run: ./gradlew shadowJar serverJar --no-daemon --stacktrace -PbuildVersion=${{ steps.date.outputs.value }}
+        run: ./gradlew shadowJar slimJar --no-daemon --stacktrace -PbuildVersion=${{ steps.date.outputs.value }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: mod/build/libs/*-bundle.jar
@@ -42,7 +42,7 @@ jobs:
           retention-days: 3
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: mod/build/libs/*-server.jar
+          path: mod/build/libs/*-slim.jar
           archive: false
           if-no-files-found: error
           retention-days: 3
@@ -57,7 +57,7 @@ jobs:
           github-tag: mod-${{ steps.date.outputs.value }}
           files: | 
             mod/build/libs/*-bundle.jar
-            mod/build/libs/*-server.jar
+            mod/build/libs/*-slim.jar
           java: |
             25
           loaders: |

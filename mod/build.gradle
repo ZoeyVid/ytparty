@@ -26,6 +26,7 @@ loom {
 
 configurations {
     bundle
+    slim
     clientImplementation.extendsFrom bundle
 }
 
@@ -35,6 +36,9 @@ dependencies {
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     bundle "dev.arbjerg:lavaplayer:${project.lavaplayer_version}"
     bundle "com.github.TeamNewPipe:NewPipeExtractor:${project.newpipe_version}"
+    slim("dev.arbjerg:lavaplayer:${project.lavaplayer_version}") { transitive = false }
+    slim("dev.arbjerg:lava-common:${project.lavaplayer_version}") { transitive = false }
+    slim "com.github.TeamNewPipe:NewPipeExtractor:${project.newpipe_version}"
     compileOnly("com.terraformersmc:modmenu:${project.modmenu_version}") { transitive = false }
 }
 
@@ -46,13 +50,17 @@ shadowJar {
     mergeServiceFiles()
 }
 
-tasks.register('serverJar', Jar) {
+tasks.register('slimJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
     dependsOn classes
-    archiveClassifier = 'server'
+    configurations = [project.configurations.slim]
+    archiveClassifier = 'slim'
     from sourceSets.main.output
-    from('serverMeta') { into '/'; expand version: version }
+    from(sourceSets.client.output) { exclude 'fabric.mod.json' }
+    from('slimMeta') { into '/'; expand version: version }
+    exclude 'META-INF/INDEX.LIST', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/versions/**/module-info.class', 'module-info.class'
+    mergeServiceFiles()
 }
-assemble.dependsOn serverJar
+assemble.dependsOn slimJar
 
 tasks.named('processClientResources') {
     inputs.property 'version', version

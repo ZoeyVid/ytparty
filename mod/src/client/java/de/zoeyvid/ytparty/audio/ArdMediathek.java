@@ -44,7 +44,8 @@ final class ArdMediathek {
             if (bool(player, "blockedByLoginOnly")) throw new MusicPlayer.Unplayable("This ARD Mediathek video needs a login");
             NavigableMap<Integer, MusicPlayer.Video> videos = mp4s(player);
             if (videos.isEmpty()) throw new MusicPlayer.Unplayable("This ARD Mediathek video has no MP4 version");
-            return new MusicPlayer.Media(identifier, title, videos.firstEntry().getValue().url(), videos, null);
+            String url = videos.firstEntry().getValue().url();
+            return new MusicPlayer.Media(identifier, title, url, videos, MusicPlayer.slimTrack(title, url, object(object(object(player, "mediaCollection"), "embedded"), "meta") instanceof JsonObject meta ? integer(meta, "durationSeconds", 0) * 1000L : 0));
         }
         throw new IOException("No ARD Mediathek video found");
     }

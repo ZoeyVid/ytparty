@@ -18,7 +18,7 @@ decoded and played entirely client‑side; nothing but small control messages tr
 |---|---|---|
 | **Client mod** | Fabric mod: the in‑game UI and the audio player (extract → decode → OpenAL) | every listener |
 | **Relay** | standalone, end‑to‑end‑encrypted server that hosts party state across *any* servers | run one, or use a public one |
-| **Server mod** | a separate, minimal server‑only jar (party logic, no UI or audio) for a Fabric server | server owner (optional) |
+| **Server mod** | a separate, small `-slim.jar` (party logic) for a Fabric server; it also works as the client mod, but then needs ffmpeg for all audio | server owner (optional) |
 | **Plugin** | Bukkit plugin for Spigot / Paper / Folia servers | server owner (optional) |
 
 You only ever need the **client mod**. It works **solo** out of the box (a private, in‑process party).
@@ -49,7 +49,9 @@ relay; each one's server backend is simply ignored while the relay is connected.
 
 ## Quick start
 
-1. **Install the client mod** (needs Fabric API) in your `mods/` folder. Open the party UI with the
+1. **Install the client mod** (needs Fabric API) in your `mods/` folder: the `-bundle.jar`, or the much
+   smaller `-slim.jar` if [ffmpeg](https://ffmpeg.org) is installed, which it then uses for all audio
+   (install only one of the two jars; with both, Fabric loads either one). Open the party UI with the
    keybind (rebindable under Options → Controls) and add a YouTube or ARD Mediathek video URL — that
    already works solo. A playlist URL adds its first video. ARD Mediathek videos that need a login can't
    be added, age‑restricted (FSK) ones only late in the evening (as on the website: FSK 16 from 22:00,

@@ -15,7 +15,7 @@ rather than any number here:
 
 | Component | Build | Versions in |
 |---|---|---|
-| mod | Gradle wrapper, JDK 25 → `./gradlew shadowJar serverJar` (bundle jar for clients ＋ slim server jar) | `mod/gradle.properties`, `mod/build.gradle` |
+| mod | Gradle wrapper, JDK 25 → `./gradlew shadowJar slimJar` (bundle jar for clients, ~36 MB ＋ slim jar, ~4.6 MB, that also works as a client with ffmpeg) | `mod/gradle.properties`, `mod/build.gradle` |
 | plugin | Gradle wrapper, **JDK 8 toolchain** against the Bukkit 1.8 API → `./gradlew build` | `plugin/build.gradle` |
 | relay | `go build`, or `docker build relay/` for the shipped multi‑arch image | `relay/go.mod`, `relay/Dockerfile` |
 

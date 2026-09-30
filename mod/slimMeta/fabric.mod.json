@@ -1,0 +1,21 @@
+{
+    "schemaVersion": 1,
+    "id": "ytparty",
+    "version": "${version}",
+    "name": "YT Party (Server)",
+    "description": "Server-side party sync for YT Party. Also works as the client, without lavaplayer's natives and HTTP client: then all audio needs ffmpeg, and other sites you allow need yt-dlp too.",
+    "authors": ["Zoey"],
+    "license": "AGPL-3.0-or-later",
+    "environment": "*",
+    "entrypoints": {
+        "main": ["de.zoeyvid.ytparty.YtPartyMain"],
+        "client": ["de.zoeyvid.ytparty.YtPartyClient"],
+        "modmenu": ["de.zoeyvid.ytparty.YtPartyModMenu"]
+    },
+    "depends": {
+        "fabricloader": ">=0.18.4",
+        "minecraft": "~26.3",
+        "java": ">=25",
+        "fabric-api": "*"
+    }
+}

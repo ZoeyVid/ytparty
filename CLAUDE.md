@@ -37,7 +37,10 @@ through the exact same logic, so solo and networked behave identically.
 
 - `mod/` — Fabric mod, split source sets: `src/client` (UI, audio, relay client) and `src/main`
   (server‑side party). `src/main/.../common/` (`Control`, `Opcodes`) is the shared brain used by the
-  server mod **and** — compiled in — by the client's solo sink.
+  server mod **and** — compiled in — by the client's solo sink. Two jars: the bundle (all of lavaplayer
+  with natives, NewPipeExtractor) and the slim jar (`slimMeta/`), which also works as the client
+  but only carries NewPipeExtractor and lavaplayer's core; its `slim` marker makes `MusicPlayer.SLIM`
+  play everything through `FfmpegAudioTrack` and never touch lavaplayer's HTTP source.
 - `plugin/` — Bukkit plugin (pure `org.bukkit.*`, no Paper/Spigot API). Targets Java 8 + the Bukkit
   1.8 API so it loads on anything from 1.8 to current.
 - `relay/` — Go, standard library only, shipped as a multi‑arch Docker image.

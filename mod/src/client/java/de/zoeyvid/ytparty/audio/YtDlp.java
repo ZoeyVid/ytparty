@@ -53,7 +53,7 @@ final class YtDlp {
         long duration = live ? Units.DURATION_MS_UNKNOWN : media.get("duration") instanceof JsonPrimitive seconds ? Math.round(seconds.getAsDouble() * 1000) : 0;
         if (duration == 0) {
             Matcher probe = probe(audio, headers);
-            duration = probe.group(2) == null ? Units.DURATION_MS_UNKNOWN : ((Long.parseLong(probe.group(2)) * 60 + Long.parseLong(probe.group(3))) * 60 + Long.parseLong(probe.group(4))) * 1000 + Long.parseLong(probe.group(5)) * 10;
+            duration = duration(probe);
             live = duration == Units.DURATION_MS_UNKNOWN && probe.group("radio") != null;
             surround |= probe.group("surround") != null;
         }
@@ -65,7 +65,7 @@ final class YtDlp {
         }
         String identifier = MusicPlayer.http(page) ? page : url;
         FfmpegAudioTrack track = new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration, audio, live, audio), headers, Objects.requireNonNullElse(string(media, "protocol"), "").startsWith("m3u8"));
-        if (track.isSeekable() && !track.hls && (surround || !ranges(audio))) MusicPlayer.FFMPEG.addAll(List.of(url, identifier));
+        if (!MusicPlayer.SLIM && track.isSeekable() && !track.hls && (surround || !ranges(audio))) MusicPlayer.FFMPEG.addAll(List.of(url, identifier));
         return new MusicPlayer.Media(identifier, title, audio, videos, track);
     }
 
@@ -84,11 +84,13 @@ final class YtDlp {
         return headers.toString();
     }
 
-    private static Matcher probe(String url, String headers) throws Exception {
+    static Matcher probe(String url, String headers) throws Exception {
         Matcher m = DURATION.matcher(output(new ProcessBuilder("ffmpeg", "-nostdin", "-hide_banner", "-protocol_whitelist", FfmpegAudioTrack.PROTOCOLS, "-rw_timeout", "15000000", "-headers", headers, "-i", url).redirectErrorStream(true), 20));
         if (!m.find()) throw new IOException("ffmpeg couldn't read " + url);
         return m;
     }
+
+    static long duration(Matcher probe) { return probe.group(2) == null ? Units.DURATION_MS_UNKNOWN : ((Long.parseLong(probe.group(2)) * 60 + Long.parseLong(probe.group(3))) * 60 + Long.parseLong(probe.group(4))) * 1000 + Long.parseLong(probe.group(5)) * 10; }
 
     private static String output(ProcessBuilder builder, int seconds) throws Exception {
         String name = builder.command().getFirst();
@@ -100,7 +102,7 @@ final class YtDlp {
             throw new MusicPlayer.Unplayable(name + " timed out");
         } catch (IOException e) {
             if (Tools.installed(name)) throw e;
-            throw new MusicPlayer.Unplayable("Other sites need " + name + " installed");
+            throw new MusicPlayer.Unplayable(MusicPlayer.SLIM && name.equals("ffmpeg") ? MusicPlayer.NEEDS_FFMPEG : "Other sites need " + name + " installed");
         } finally { if (!file.toFile().delete()) file.toFile().deleteOnExit(); }
     }
 }
