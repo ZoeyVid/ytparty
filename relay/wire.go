@@ -88,11 +88,16 @@ func (w *wtr) blob(b []byte) {
 }
 func (w *wtr) str(s string) { w.blob([]byte(s)) }
 
-func capBytes(b []byte, max int) []byte {
-	if len(b) <= max {
-		return b
+func capChars(b []byte, max int) []byte {
+	for i, c := range b {
+		if c&0xC0 != 0x80 {
+			if max == 0 {
+				return b[:i]
+			}
+			max--
+		}
 	}
-	return b[:max]
+	return b
 }
 
 func writeFrame(c net.Conn, b []byte) error {

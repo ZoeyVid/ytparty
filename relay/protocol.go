@@ -323,7 +323,7 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 	switch int(op) {
 	case cAdd:
 		uri := rd.blob()
-		title := capBytes(rd.blob(), 200)
+		title := capChars(rd.blob(), 200)
 		if rd.bad || len(uri) == 0 || len(uri) > 1000 {
 			return
 		}
@@ -401,7 +401,7 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		nt := make([]trackRef, 0, n)
 		for range n {
 			uri := rd.blob()
-			title := capBytes(rd.blob(), 200)
+			title := capChars(rd.blob(), 200)
 			if rd.bad {
 				return
 			}

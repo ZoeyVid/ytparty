@@ -166,7 +166,7 @@ public final class PlayerController {
     public int seeks() { return audio.seeks(); }
 
     public void createParty() {
-        if (backend == null) return;
+        if (!ClientSync.backendAvailable()) return;
         backend.send(SyncProtocol.create());
         backend.send(SyncProtocol.setRepeat(repeatOne));
         backend.send(SyncProtocol.setAutoRemove(autoRemovePlayed));
@@ -257,7 +257,7 @@ public final class PlayerController {
         playlist.replaceAll(s.tracks());
         currentIndex = s.currentIndex();
         if (partyId.isEmpty()) ClientConfig.save();
-        if (carryIndex >= 0) {
+        if (carryIndex >= 0 && hasParty()) {
             if (s.tracks().isEmpty()) return;
             Track carried = playlist.get(carryIndex);
             if (carried == null || !carried.uri().equals(loadedUri)) carryIndex = -1;

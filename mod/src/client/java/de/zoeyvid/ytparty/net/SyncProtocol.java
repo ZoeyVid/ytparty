@@ -32,7 +32,7 @@ public final class SyncProtocol {
     public static byte[] setLevel(String name, byte level) { return write(C2S_SET_LEVEL, d -> { d.writeUTF(name); d.writeByte(level); }); }
     public static byte[] setPublic(boolean isPublic, byte level) { return write(C2S_SET_PUBLIC, d -> { d.writeBoolean(isPublic); d.writeByte(level); }); }
     public static byte[] setAutoRemove(boolean on) { return write(C2S_SET_AUTOREMOVE, d -> d.writeBoolean(on)); }
-    public static byte[] add(String uri, String title) { return write(C2S_ADD, d -> { d.writeUTF(uri); d.writeUTF(title); }); }
+    public static byte[] add(String uri, String title) { return write(C2S_ADD, d -> { d.writeUTF(uri); d.writeUTF(cap(title, 200)); }); }
     public static byte[] remove(int trackId) { return write(C2S_REMOVE, d -> d.writeInt(trackId)); }
     public static byte[] move(int trackId, int toIndex) { return write(C2S_MOVE, d -> { d.writeInt(trackId); d.writeInt(toIndex); }); }
     public static byte[] setTrack(int trackId) { return write(C2S_SET_TRACK, d -> d.writeInt(trackId)); }
@@ -42,7 +42,7 @@ public final class SyncProtocol {
     public static byte[] setSponsorBlock(byte flags) { return write(C2S_SET_SPONSORBLOCK, d -> d.writeByte(flags)); }
     public static byte[] setRepeat(boolean on) { return write(C2S_SET_REPEAT, d -> d.writeBoolean(on)); }
     public static byte[] trackEnded(int generation) { return write(C2S_TRACK_ENDED, d -> d.writeInt(generation)); }
-    public static byte[] setPlaylist(List<Track> tracks) { return write(C2S_SET_PLAYLIST, d -> { d.writeInt(tracks.size()); for (Track t : tracks) { d.writeUTF(t.uri()); d.writeUTF(t.title()); } }); }
+    public static byte[] setPlaylist(List<Track> tracks) { return write(C2S_SET_PLAYLIST, d -> { d.writeInt(tracks.size()); for (Track t : tracks) { d.writeUTF(t.uri()); d.writeUTF(cap(t.title(), 200)); } }); }
 
     public static State readState(DataInputStream d) throws IOException {
         String partyId = d.readUTF();
@@ -68,6 +68,8 @@ public final class SyncProtocol {
     }
 
     private static byte[] one(byte op) { return write(op, d -> {}); }
+
+    private static String cap(String s, int max) { return s.length() <= max ? s : s.substring(0, Character.isHighSurrogate(s.charAt(max - 1)) ? max - 1 : max); }
 
     private interface Body { void write(DataOutputStream d) throws IOException; }
 
