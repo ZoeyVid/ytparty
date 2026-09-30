@@ -16,8 +16,8 @@ What each component pulls in and why. Exact versions are pinned in the build fil
   child process and reads raw frames or PCM from it; the PCM goes through lavaplayer's pipeline like
   any other track. Without it, everything except these works.
 - **yt-dlp** (optional, installed on the system, not bundled) — resolves URLs from other sites (and
-  their livestreams and playlists) when *Other sites* is turned on. The client runs `yt-dlp`
-  once per URL and reads its JSON; YouTube video and playlist URLs and ARD Mediathek video URLs
+  their livestreams and playlists) listed under *Allowed sites*. The client runs `yt-dlp` once per
+  URL and reads its JSON; YouTube video and playlist URLs and ARD Mediathek video URLs
   never go through it, but other YouTube and ARD Mediathek links (channels, live or show pages) do.
 - Both programs are looked for on the `PATH` first, then in the usual install folders the game's `PATH`
   often lacks (macOS apps started from the Dock or Finder, a launcher already running during the

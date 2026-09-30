@@ -3,7 +3,7 @@
     "id": "ytparty",
     "version": "${version}",
     "name": "YT Party",
-    "description": "YouTube and ARD Mediathek player (client) with party sync; optionally a picture-in-picture video and YouTube livestreams via ffmpeg, and other sites via yt-dlp. Same jar acts as the server-side host on a Fabric server.",
+    "description": "YouTube and ARD Mediathek player (client) with party sync; optionally a picture-in-picture video and YouTube livestreams via ffmpeg, and other sites you allow via yt-dlp and ffmpeg. Same jar acts as the server-side host on a Fabric server.",
     "authors": ["Zoey"],
     "license": "AGPL-3.0-or-later",
     "environment": "*",

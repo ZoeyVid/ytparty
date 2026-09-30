@@ -3,8 +3,8 @@
 ## Model
 
 The client mod plays audio (and, if turned on, a picture‑in‑picture video) and sends small control
-frames; it opens no ports. It starts the system `ffmpeg` (video, livestreams, other sites) and, with
-*Other sites* on, `yt-dlp` as child processes. To read YouTube's stream URLs, NewPipeExtractor runs
+frames; it opens no ports. It starts the system `ffmpeg` (video, livestreams, other sites) and, for
+allowed sites, `yt-dlp` as child processes. To read YouTube's stream URLs, NewPipeExtractor runs
 functions from YouTube's player JavaScript in the bundled Rhino interpreter, without access to Java
 classes. The security surface is the **backend connection** and **who may control a party**.
 
@@ -47,7 +47,10 @@ the compose file (use an `.env` / secret).
 
 The backend (relay operator, or the Minecraft server) sees party membership and playlist contents in
 the clear — the encryption protects the link, not the operator. YouTube and ARD Mediathek URLs are
-resolved and audio is fetched **by each client**, not by the backend. With *Other sites* turned on,
-a party manager can make your client run `yt-dlp` and `ffmpeg` against any http(s) URL they add,
-which shows your IP address to that site and can make your client request hosts in your local
-network or on your own computer; that's why the setting is off by default.
+resolved and audio is fetched **by each client**, not by the backend. For the sites in your
+*Allowed sites* list (empty by default), a party manager can make your client run `yt-dlp` and
+`ffmpeg` against any URL on those sites they add, which shows your IP address to those sites; what
+such a site returns can also make your client request hosts in your local network or on your own
+computer, so only allow sites you trust (a bare `https://` allows every https site). URLs of other
+sites are refused before `yt-dlp` runs; a prefix only matches at a URL boundary, so
+`https://www.zdf.de` doesn't allow `https://www.zdf.de.example.com` or `https://www.zdf.de@example.com`.

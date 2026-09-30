@@ -60,10 +60,10 @@ relay; each one's server backend is simply ignored while the relay is connected.
    livestreams (audio only); each listener hears them at their own live point, so they aren't synced or
    seekable. A short dropout is bridged by reconnecting; after a longer one the stream is loaded once
    more, and if that fails too you get an error. With [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-   installed as well, *Other sites* in *Settings* (off by default) also accepts URLs from the other
-   sites yt-dlp supports. Their livestreams and internet radios (Icecast, Shoutcast) play like YouTube
-   livestreams; a file whose length can't be read is shown as LIVE too (not seekable or synced, no
-   video), but it ends normally.
+   installed as well, URLs from the other sites yt-dlp supports play too, but only from the sites you
+   list under *Settings* → *Allowed sites* (none by default; e.g. `https://www.zdf.de`). Their
+   livestreams and internet radios (Icecast, Shoutcast) play like YouTube livestreams; a file whose
+   length can't be read is shown as LIVE too (not seekable or synced, no video), but it ends normally.
 2. **To sync with others**, either:
    - **Relay:** enter host / port / password in the in‑game *Relay* screen and connect. Run your own
      with Docker (`relay/compose.yaml` + `relay/Dockerfile`, image `ghcr.io/zoeyvid/ytparty`) — see

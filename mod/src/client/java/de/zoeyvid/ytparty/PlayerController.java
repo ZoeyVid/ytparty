@@ -144,6 +144,8 @@ public final class PlayerController {
 
     public void setVolume(int v) { volume = Math.clamp(v, 0, 200); audio.setVolume(volume); }
 
+    public void setAllowedSites(String lines) { audio.setAllowedSites(lines); }
+
     public void seekBy(long ms) { if (ctrl()) sink.send(SyncProtocol.setPosition(audio.position() + ms)); }
 
     public void applyRemoteSeek(long ms, int generation) { audio.setPosition(ms); partyGeneration = generation; }

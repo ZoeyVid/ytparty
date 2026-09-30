@@ -31,6 +31,7 @@ import org.schabi.newpipe.extractor.utils.Utils;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -46,6 +47,7 @@ import java.util.function.Consumer;
 
 public final class MusicPlayer {
     private static final AudioDataFormat FORMAT = StandardAudioDataFormats.COMMON_PCM_S16_LE;
+    static final String BLOCKED = "This site isn't in your allowed sites (Settings)";
 
     private final AudioPlayerManager manager = new DefaultAudioPlayerManager();
     private final AudioPlayer player = manager.createPlayer();
@@ -62,7 +64,7 @@ public final class MusicPlayer {
     private static final ExecutorService RESOLVER = executor("ytparty-resolve"), ADDER = executor("ytparty-add");
     private static volatile boolean newPipeReady;
     private static final Map<String, Media> RESOLVED = new ConcurrentHashMap<>();
-    public static volatile boolean otherSites;
+    private static volatile List<String> allowedSites = List.of();
     private volatile String playing;
     private volatile Future<?> loading;
     private boolean mayRetry;
@@ -100,15 +102,29 @@ public final class MusicPlayer {
     private static Media media(String identifier) throws Exception {
         if (!http(identifier)) throw new Unplayable("Only http(s) URLs can be played");
         Media cached = RESOLVED.get(identifier);
-        if (cached != null && (otherSites || builtIn(identifier))) return cached;
+        if (cached != null && !blocked(identifier)) return cached;
         String ard = ArdMediathek.id(identifier);
         Media media = ard != null ? ArdMediathek.resolve(identifier, ard) : isYoutube(identifier) ? youtube(identifier) : YtDlp.resolve(identifier);
+        if (blocked(media.identifier())) media = new Media(identifier, media.title(), media.url(), media.videos(), media.track());
         RESOLVED.put(identifier, media);
-        if (builtIn(identifier) || !builtIn(media.identifier())) RESOLVED.put(media.identifier(), media);
+        if (builtIn(identifier) || !builtIn(media.identifier()) && origin(identifier).equalsIgnoreCase(origin(media.identifier()))) RESOLVED.put(media.identifier(), media);
         return media;
     }
 
     private static boolean builtIn(String url) throws Exception { return ArdMediathek.id(url) != null || isYoutube(url); }
+
+    private static boolean blocked(String url) throws Exception { return !allowed(url) && !builtIn(url); }
+
+    public static List<String> allowedSites() { return allowedSites; }
+
+    static boolean allowed(String url) {
+        String u = lowerOrigin(url);
+        return !url.matches("(?is)[^?#]*?(?:[/\\\\]|%2f|%5c)(?:\\.|%2e){1,2}(?:[/\\\\?#;]|%2f|%5c|$).*") && allowedSites.stream().map(MusicPlayer::lowerOrigin).anyMatch(site -> u.startsWith(site) && (site.matches(".*[/?#]") || u.substring(site.length()).matches("([/?#].*)?")));
+    }
+
+    private static String lowerOrigin(String url) { String origin = origin(url); return origin.toLowerCase(Locale.ROOT) + url.substring(origin.length()); }
+
+    private static String origin(String url) { return url.replaceFirst("(?s)([^/?#]*(//[^/?#]*)?).*", "$1"); }
 
     private static boolean isYoutube(String url) throws Exception {
         return ServiceList.YouTube.getStreamLHFactory().acceptUrl(withoutList(url)) || ServiceList.YouTube.getPlaylistLHFactory().acceptUrl(url);
@@ -159,6 +175,19 @@ public final class MusicPlayer {
 
     public void setOnEnd(Runnable r) { onEnd = r != null ? r : () -> {}; }
     public void setOnError(Consumer<String> c) { onError = c != null ? c : reason -> {}; }
+
+    public void setAllowedSites(String lines) {
+        allowedSites = lines.lines().map(String::strip).filter(line -> !line.isEmpty()).toList();
+        RESOLVED.clear();
+        String identifier = playing;
+        AudioTrack last = lastTrack;
+        try {
+            if (identifier != null && blocked(identifier) || last != null && blocked(((Media) last.getUserData()).identifier())) {
+                lastTrack = null;
+                if (identifier != null) { if (loading != null) loading.cancel(true); failed(identifier, BLOCKED); }
+            }
+        } catch (Exception ignored) {}
+    }
 
     public void resolveAll(String identifier, Consumer<List<String[]>> onDone) {
         ADDER.execute(() -> {

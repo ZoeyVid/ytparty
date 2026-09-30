@@ -11,7 +11,7 @@ concrete versions live in the build files, not here, so they don't rot.
 Synchronised YouTube and ARD Mediathek listening in Minecraft. A Fabric **client mod** does the UI and
 the audio (extract → decode with lavaplayer → OpenAL), plus an optional picture‑in‑picture video that
 the system `ffmpeg` decodes in a child process, paced by the local audio position (no protocol
-involvement). Livestreams and, when turned on, other sites resolved by the system `yt-dlp` are decoded
+involvement). Livestreams and allow‑listed other sites resolved by the system `yt-dlp` are decoded
 by `ffmpeg` too, into lavaplayer's pipeline (`FfmpegAudioTrack`); a livestream isn't seekable, so every
 client plays it at its own live point. ffmpeg bridges short drops itself (`-reconnect*`); a live track
 that still ends is handled like a failed one and resolved once more, so a longer outage recovers or

@@ -1,7 +1,6 @@
 package de.zoeyvid.ytparty.gui;
 
 import de.zoeyvid.ytparty.ClientConfig;
-import de.zoeyvid.ytparty.audio.MusicPlayer;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.StringWidget;
@@ -37,8 +36,8 @@ public final class HudScreen extends Screen {
         addRenderableWidget(video);
         addRenderableWidget(Button.builder(Component.literal("Video position: " + switch (ClientConfig.videoPosition()) { case 0 -> "Top-left"; case 1 -> "Top center"; case 2 -> "Top-right"; case 3 -> "Left middle"; case 5 -> "Right middle"; case 6 -> "Bottom-left"; case 7 -> "Bottom center"; default -> "Bottom-right"; }),
             b -> { ClientConfig.setVideoPosition(VIDEO_POSITIONS.get((VIDEO_POSITIONS.indexOf(ClientConfig.videoPosition()) + 1) % VIDEO_POSITIONS.size())); rebuildWidgets(); }).tooltip(Tooltip.create(Component.literal("Corner or edge where the video sits"))).bounds(left, top + 104, 320, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Other sites: " + (MusicPlayer.otherSites ? "ON" : "OFF")),
-            b -> { MusicPlayer.otherSites = !MusicPlayer.otherSites; ClientConfig.save(); rebuildWidgets(); }).tooltip(Tooltip.create(Component.literal("Also play URLs from other sites and their livestreams through yt-dlp, including ones others add; those sites see your IP address (needs yt-dlp and ffmpeg installed)"))).bounds(left, top + 130, 320, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Allowed sites\u2026"), b -> this.minecraft.setScreenAndShow(new AllowedSitesScreen()))
+            .tooltip(Tooltip.create(Component.literal("Other sites whose URLs and livestreams play through yt-dlp, including ones others add; those sites see your IP address (needs yt-dlp and ffmpeg installed)"))).bounds(left, top + 130, 320, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> this.minecraft.setScreenAndShow(new PlaylistScreen()))
             .tooltip(Tooltip.create(Component.literal("Back to the playlist"))).bounds(left, this.height - 28, 320, 20).build());
     }

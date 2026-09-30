@@ -35,7 +35,7 @@ final class YtDlp {
     private YtDlp() {}
 
     static MusicPlayer.Media resolve(String url) throws Exception {
-        if (!MusicPlayer.otherSites) throw new MusicPlayer.Unplayable("Other sites are turned off (Settings)");
+        if (!MusicPlayer.allowed(url)) throw new MusicPlayer.Unplayable(MusicPlayer.BLOCKED);
         String missing = Stream.of("yt-dlp", "ffmpeg").filter(tool -> !Tools.installed(tool)).collect(Collectors.joining(" and "));
         if (!missing.isEmpty()) throw new MusicPlayer.Unplayable("Other sites need " + missing + " installed");
         JsonElement info = JsonParser.parseString(output(new ProcessBuilder("yt-dlp", "--ignore-config", "--no-warnings", "--no-playlist", "-I", "1", "-J", "-f", "ba" + HTTP + "/ba" + HLS + "/b" + HTTP + "[height<=?480]/b" + HLS + "[height<=?480]/w" + HTTP + "/w" + HLS, "--", url)
