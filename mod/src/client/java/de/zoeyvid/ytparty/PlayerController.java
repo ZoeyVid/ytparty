@@ -31,7 +31,6 @@ public final class PlayerController {
     private final LocalSink localSink = new LocalSink();
     private Sink backend;
     private Sink sink;
-    private boolean inParty = false;
     private byte myLevel = MANAGE;
     private boolean isPublic = false;
     private byte publicJoinLevel = 0;
@@ -48,7 +47,6 @@ public final class PlayerController {
     private int publicListVersion;
     private List<String> relayPlayers = List.of();
     private byte partySbFlags = SponsorBlock.FLAG_ALL;
-    private long pendingJoinElapsed = -1;
     private boolean repeatOne = false;
     private int partyGeneration;
     private int nextLocalId = 1;
@@ -93,7 +91,6 @@ public final class PlayerController {
     }
 
     public void tick() {
-        joinSeekTick();
         sponsorBlockTick();
     }
 
@@ -105,12 +102,6 @@ public final class PlayerController {
         for (SponsorBlock.Segment s : segments) {
             if (SponsorBlock.categoryEnabled(flags, s.category()) && pos >= s.startMs() && pos < s.endMs() - 500) { audio.setPosition(s.endMs()); if (ctrl()) sink.send(SyncProtocol.reanchor(partyGeneration, s.endMs())); return; }
         }
-    }
-
-    private void joinSeekTick() {
-        if (pendingJoinElapsed < 0 || audio.duration() <= 0) return;
-        audio.setPosition(pendingJoinElapsed);
-        pendingJoinElapsed = -1;
     }
 
     private void loadSegments(String uri) {
@@ -155,7 +146,7 @@ public final class PlayerController {
 
     public void seekBy(long ms) { if (ctrl()) sink.send(SyncProtocol.setPosition(audio.position() + ms)); }
 
-    public void applyRemoteSeek(long ms, int generation) { audio.setPosition(ms); partyGeneration = generation; if (pendingJoinElapsed >= 0) pendingJoinElapsed = ms; }
+    public void applyRemoteSeek(long ms, int generation) { audio.setPosition(ms); partyGeneration = generation; }
 
     public void seekTo(long ms) { if (ctrl()) sink.send(SyncProtocol.setPosition(ms)); }
 
@@ -239,8 +230,7 @@ public final class PlayerController {
     }
 
     public void applyState(SyncProtocol.State s) {
-        boolean wasInParty = inParty;
-        inParty = true;
+        boolean joined = !s.partyId().equals(partyId);
         partyId = s.partyId();
         sink = partyId.isEmpty() ? localSink : backend;
         myLevel = s.myLevel();
@@ -270,16 +260,14 @@ public final class PlayerController {
             }
         }
         Track t = playlist.get(currentIndex);
-        if (t == null) { loadedUri = null; segments = List.of(); segmentsUri = ""; pendingJoinElapsed = -1; audio.stop(); return; }
-        boolean trackChanged = false;
-        if (!t.uri().equals(loadedUri)) { loadedUri = t.uri(); trackChangedAt = System.currentTimeMillis(); loadSegments(t.uri()); audio.playIdentifier(t.uri(), title -> {}); trackChanged = true; }
-        else if (wasInParty && partyGeneration != prevGeneration) { trackChangedAt = System.currentTimeMillis(); audio.repeatCurrent(); trackChanged = true; }
-        if (!wasInParty) pendingJoinElapsed = s.elapsed();
-        else if (trackChanged) pendingJoinElapsed = -1;
+        if (t == null) { loadedUri = null; segments = List.of(); segmentsUri = ""; audio.stop(); return; }
+        if (!t.uri().equals(loadedUri)) { loadedUri = t.uri(); trackChangedAt = System.currentTimeMillis(); loadSegments(t.uri()); audio.playIdentifier(t.uri(), title -> {}); }
+        else if (!joined && partyGeneration != prevGeneration) { trackChangedAt = System.currentTimeMillis(); audio.repeatCurrent(); }
+        if (joined) audio.setPosition(s.elapsed());
         audio.setPaused(paused);
     }
 
-    public void onPartyLeft() { carryIndex = -1; inParty = false; myLevel = MANAGE; isPublic = false; partyGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }
+    public void onPartyLeft() { carryIndex = -1; myLevel = MANAGE; isPublic = false; partyGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }
 
     private void syncLocalParty() {
         Party p = localSink.party;

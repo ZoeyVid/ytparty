@@ -23,6 +23,7 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
     private final String headers;
     private final boolean hls;
     private volatile long start;
+    volatile boolean failed;
 
     FfmpegAudioTrack(AudioTrackInfo info, String headers, boolean hls) {
         super(info);
@@ -41,9 +42,9 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
                     if (hls) decode(pipeline, format, false);
                 }
                 while (executor.getAudioBuffer().getLastInputTimecode() != null) Thread.sleep(10);
-                executor.waitOnEnd();
             }, position -> { start = position; pipeline.seekPerformed(position, position); });
         }
+        catch (RuntimeException e) { failed = true; throw e; }
         finally { pipeline.close(); }
     }
 
