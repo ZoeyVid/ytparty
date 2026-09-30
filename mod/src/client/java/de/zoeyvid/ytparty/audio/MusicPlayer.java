@@ -34,13 +34,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
@@ -64,7 +62,6 @@ public final class MusicPlayer {
     private static final ExecutorService RESOLVER = executor("ytparty-resolve"), ADDER = executor("ytparty-add");
     private static volatile boolean newPipeReady;
     private static final Map<String, Media> RESOLVED = new ConcurrentHashMap<>();
-    private static final Set<String> INSTALLED = ConcurrentHashMap.newKeySet();
     public static volatile boolean otherSites;
     private volatile String playing;
     private volatile Future<?> loading;
@@ -80,7 +77,7 @@ public final class MusicPlayer {
                 if (reason != AudioTrackEndReason.FINISHED && reason != AudioTrackEndReason.LOAD_FAILED) return;
                 boolean played = ((InternalAudioTrack) t).getActiveExecutor().getAudioBuffer().hasReceivedFrames();
                 if (reason == AudioTrackEndReason.FINISHED && (played || seekTarget >= 0 && !(t instanceof FfmpegAudioTrack f && f.failed)) && !t.getInfo().isStream) { decodeFinished = true; if (played && seekTarget >= 0 && t.getPosition() == seekTarget) setPosition(seekTarget); }
-                else { if (played) mayRetry = true; failed(playing, null); }
+                else { if (played) mayRetry = true; failed(playing, t instanceof FfmpegAudioTrack && !Tools.installed("ffmpeg") ? (t.getInfo().isStream ? "Livestreams" : "Other sites") + " need ffmpeg installed" : null); }
             }
         });
         Thread pump = new Thread(this::pumpLoop, "ytparty-audio");
@@ -129,20 +126,10 @@ public final class MusicPlayer {
         }
         StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, video);
         if (!live(info)) return new Media(identifier, info.getName(), bestAudioUrl(info), videoUrls(info), null);
-        if (!installed("ffmpeg", "-version")) throw new Unplayable("Livestreams need ffmpeg installed");
+        if (!Tools.installed("ffmpeg")) throw new Unplayable("Livestreams need ffmpeg installed");
         String url = Utils.isNullOrEmpty(info.getHlsUrl()) ? info.getDashMpdUrl() : info.getHlsUrl();
         if (Utils.isNullOrEmpty(url)) throw new Unplayable("This YouTube livestream has no playable stream");
         return new Media(identifier, info.getName(), url, Collections.emptyNavigableMap(), new FfmpegAudioTrack(new AudioTrackInfo(info.getName(), "", Units.DURATION_MS_UNKNOWN, url, true, url), "", true));
-    }
-
-    static boolean installed(String command, String versionFlag) {
-        if (INSTALLED.contains(command)) return true;
-        try {
-            Process process = new ProcessBuilder(command, versionFlag).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
-            if (process.waitFor(10, TimeUnit.SECONDS) && process.exitValue() == 0) INSTALLED.add(command);
-            process.destroyForcibly();
-        } catch (Exception ignored) {}
-        return INSTALLED.contains(command);
     }
 
     private static void forget(String identifier) { RESOLVED.remove(identifier); }

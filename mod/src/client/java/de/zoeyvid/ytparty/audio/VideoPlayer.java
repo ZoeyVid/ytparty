@@ -66,7 +66,7 @@ public final class VideoPlayer {
             if (start > 0) command.addAll(List.of("-ss", start + "ms", "-copyts", "-start_at_zero"));
             command.addAll(List.of("-i", url, "-an", "-sn", "-dn", "-vf", "fps=" + FPS + ",scale=" + width + ":" + height + ":force_original_aspect_ratio=decrease,pad=" + width + ":" + height + ":-1:-1",
                 "-pix_fmt", "rgba", "-f", "rawvideo", "pipe:1"));
-            process = new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+            process = Tools.start(new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD));
             Thread reader = new Thread(this, "ytparty-video");
             reader.setDaemon(true);
             reader.start();

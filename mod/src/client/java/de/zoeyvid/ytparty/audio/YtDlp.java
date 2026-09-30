@@ -20,6 +20,8 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static de.zoeyvid.ytparty.audio.ArdMediathek.bool;
 import static de.zoeyvid.ytparty.audio.ArdMediathek.integer;
@@ -34,7 +36,8 @@ final class YtDlp {
 
     static MusicPlayer.Media resolve(String url) throws Exception {
         if (!MusicPlayer.otherSites) throw new MusicPlayer.Unplayable("Other sites are turned off (Settings)");
-        if (!MusicPlayer.installed("yt-dlp", "--version") || !MusicPlayer.installed("ffmpeg", "-version")) throw new MusicPlayer.Unplayable("Other sites need yt-dlp and ffmpeg installed");
+        String missing = Stream.of("yt-dlp", "ffmpeg").filter(tool -> !Tools.installed(tool)).collect(Collectors.joining(" and "));
+        if (!missing.isEmpty()) throw new MusicPlayer.Unplayable("Other sites need " + missing + " installed");
         JsonElement info = JsonParser.parseString(output(new ProcessBuilder("yt-dlp", "--ignore-config", "--no-warnings", "--no-playlist", "-I", "1", "-J", "-f", "ba" + HTTP + "/ba" + HLS + "/b" + HTTP + "[height<=?480]/b" + HLS + "[height<=?480]/w" + HTTP + "/w" + HLS, "--", url)
             .redirectError(ProcessBuilder.Redirect.DISCARD), 60));
         while (info instanceof JsonObject playlist && playlist.get("entries") instanceof JsonArray entries) info = entries.isEmpty() ? JsonNull.INSTANCE : entries.get(0);
@@ -70,12 +73,16 @@ final class YtDlp {
     }
 
     private static String output(ProcessBuilder builder, int seconds) throws Exception {
+        String name = builder.command().getFirst();
         Path file = Files.createTempFile("ytparty", ".out");
         try {
-            Process process = builder.redirectOutput(file.toFile()).start();
+            Process process = Tools.start(builder.redirectOutput(file.toFile()));
             try { if (process.waitFor(seconds, TimeUnit.SECONDS)) return new String(Files.readAllBytes(file), StandardCharsets.UTF_8); }
             finally { process.descendants().forEach(ProcessHandle::destroyForcibly); process.destroyForcibly(); }
-            throw new MusicPlayer.Unplayable(builder.command().getFirst() + " timed out");
+            throw new MusicPlayer.Unplayable(name + " timed out");
+        } catch (IOException e) {
+            if (Tools.installed(name)) throw e;
+            throw new MusicPlayer.Unplayable("Other sites need " + name + " installed");
         } finally { if (!file.toFile().delete()) file.toFile().deleteOnExit(); }
     }
 }

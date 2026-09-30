@@ -12,13 +12,20 @@ What each component pulls in and why. Exact versions are pinned in the build fil
 - ARD Mediathek URLs are resolved against ARD's own API (no key needed) with the JDK HTTP client and
   the Gson that ships with Minecraft — no extra library.
 - **ffmpeg** (optional, installed on the system, not bundled) — decodes the picture‑in‑picture video,
-  YouTube livestreams and everything from other sites. The client starts the `ffmpeg` on the `PATH` as a
+  YouTube livestreams and everything from other sites. The client starts the `ffmpeg` it finds as a
   child process and reads raw frames or PCM from it; the PCM goes through lavaplayer's pipeline like
   any other track. Without it, everything except these works.
 - **yt-dlp** (optional, installed on the system, not bundled) — resolves URLs from other sites (and
-  their livestreams and playlists) when *Other sites* is turned on. The client runs the `yt-dlp` on the
-  `PATH` once per URL and reads its JSON; YouTube video and playlist URLs and ARD Mediathek video URLs
+  their livestreams and playlists) when *Other sites* is turned on. The client runs `yt-dlp`
+  once per URL and reads its JSON; YouTube video and playlist URLs and ARD Mediathek video URLs
   never go through it, but other YouTube and ARD Mediathek links (channels, live or show pages) do.
+- Both programs are looked for on the `PATH` first, then in the usual install folders the game's `PATH`
+  often lacks (macOS apps started from the Dock or Finder, a launcher already running during the
+  install): `/opt/homebrew/bin`, `/usr/local/bin` and `/opt/local/bin` on macOS; `/usr/local/bin`,
+  `~/.local/bin` and `/snap/bin` on Linux; `%LOCALAPPDATA%\Microsoft\WinGet\Links`,
+  `%USERPROFILE%\scoop\shims` and `%ChocolateyInstall%\bin` on Windows. The path found is
+  remembered and looked up again when the program can't be started any more; a missing program is
+  named in the error. A game started from a Flatpak launcher can't see programs installed on the host.
 - Crypto is JDK standard library only (ML‑KEM via the built‑in KEM API, AES‑GCM, PBKDF2) — no library.
 
 ## Plugin (`plugin/`)

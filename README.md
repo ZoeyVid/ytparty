@@ -54,7 +54,8 @@ relay; each one's server backend is simply ignored while the relay is connected.
    already works solo. A playlist URL adds its first video. ARD Mediathek videos that need a login can't
    be added, age‑restricted (FSK) ones only late in the evening (as on the website: FSK 16 from 22:00,
    FSK 18 from 23:00), and some are only available in Germany or the DACH region. With
-   [ffmpeg](https://ffmpeg.org) installed on your `PATH`, the *Settings* screen can also show the video
+   [ffmpeg](https://ffmpeg.org) installed (on your `PATH` or in a
+   [usual install folder](docs/DEPENDENCIES.md)), the *Settings* screen can also show the video
    as a small picture‑in‑picture window, synced to the audio (toggle key `K`). ffmpeg also plays YouTube
    livestreams (audio only); each listener hears them at their own live point, so they aren't synced or
    seekable. A short dropout is bridged by reconnecting; after a longer one the stream is loaded once

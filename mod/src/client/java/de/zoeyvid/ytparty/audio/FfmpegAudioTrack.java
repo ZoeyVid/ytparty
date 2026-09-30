@@ -57,7 +57,7 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
         command.addAll(List.of("-i", trackInfo.uri));
         if (start > 0 && !inputSeek) command.addAll(List.of("-ss", start + "ms"));
         command.addAll(List.of("-vn", "-sn", "-dn", "-f", "s16le", "-ac", Integer.toString(format.channelCount), "-ar", Integer.toString(format.sampleRate), "pipe:1"));
-        Process process = new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+        Process process = Tools.start(new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD));
         try (InputStream in = process.getInputStream()) {
             byte[] buffer = new byte[format.totalSampleCount() * 2];
             boolean received = false;
