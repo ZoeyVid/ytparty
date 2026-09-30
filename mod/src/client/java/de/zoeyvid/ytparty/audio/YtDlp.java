@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -57,12 +58,14 @@ final class YtDlp {
             live = duration == Units.DURATION_MS_UNKNOWN && probe.group("radio") != null;
             surround |= probe.group("surround") != null;
         }
-        NavigableMap<Integer, MusicPlayer.Video> videos = new TreeMap<>();
+        NavigableMap<Integer, JsonObject> best = new TreeMap<>();
         if (duration != Units.DURATION_MS_UNKNOWN && media.get("formats") instanceof JsonArray formats) for (JsonElement e : formats) if (e instanceof JsonObject format) {
             int height = integer(format, "height", 0);
             if (height > 0 && !"none".equals(string(format, "vcodec")) && MusicPlayer.http(string(format, "url")) && Objects.requireNonNullElse(string(format, "protocol"), "").matches("https?|m3u8(_native)?"))
-                videos.put(height, new MusicPlayer.Video(string(format, "url"), integer(format, "width", 0), height, headers(format)));
+                best.merge(height, format, (a, b) -> Comparator.comparingInt((JsonObject f) -> string(f, "protocol").startsWith("m3u8") ? 1 : string(f, "vcodec") == null ? 2 : 0).thenComparing(f -> f.get("fps") instanceof JsonPrimitive fps ? fps.getAsDouble() : 0d, MusicPlayer.FPS).compare(b, a) <= 0 ? b : a);
         }
+        NavigableMap<Integer, MusicPlayer.Video> videos = new TreeMap<>();
+        best.forEach((height, format) -> videos.put(height, new MusicPlayer.Video(string(format, "url"), integer(format, "width", 0), height, headers(format), string(format, "protocol").startsWith("m3u8"))));
         String identifier = MusicPlayer.http(page) ? page : url;
         FfmpegAudioTrack track = new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration, audio, live, audio), headers, Objects.requireNonNullElse(string(media, "protocol"), "").startsWith("m3u8"));
         if (!MusicPlayer.SLIM && track.isSeekable() && !track.hls && (surround || !ranges(audio))) MusicPlayer.FFMPEG.addAll(List.of(url, identifier));

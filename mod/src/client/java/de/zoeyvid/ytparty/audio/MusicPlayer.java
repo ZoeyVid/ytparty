@@ -33,6 +33,7 @@ import org.schabi.newpipe.extractor.utils.Utils;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -97,7 +98,9 @@ public final class MusicPlayer {
     }
 
     record Media(String identifier, String title, String url, NavigableMap<Integer, Video> videos, AudioTrack track) {}
-    public record Video(String url, int width, int height, String headers) {}
+    public record Video(String url, int width, int height, String headers, boolean hls) {}
+
+    static final Comparator<Double> FPS = Comparator.comparingDouble((Double fps) -> fps > 0 ? Math.max(fps / 30, 30 / fps) : Double.MAX_VALUE).thenComparing(Comparator.reverseOrder());
 
     static final class Unplayable extends Exception {
         Unplayable(String reason) { super(reason); }
@@ -154,7 +157,7 @@ public final class MusicPlayer {
         if (!Tools.installed("ffmpeg")) throw new Unplayable("Livestreams need ffmpeg installed");
         String url = Utils.isNullOrEmpty(info.getHlsUrl()) ? info.getDashMpdUrl() : info.getHlsUrl();
         if (Utils.isNullOrEmpty(url)) throw new Unplayable("This YouTube livestream has no playable stream");
-        return new Media(identifier, info.getName(), url, Collections.emptyNavigableMap(), new FfmpegAudioTrack(new AudioTrackInfo(info.getName(), "", Units.DURATION_MS_UNKNOWN, url, true, url), "", true));
+        return new Media(identifier, info.getName(), url, Collections.emptyNavigableMap(), new FfmpegAudioTrack(new AudioTrackInfo(info.getName(), "", Units.DURATION_MS_UNKNOWN, url, true, url), "", !Utils.isNullOrEmpty(info.getHlsUrl())));
     }
 
     static AudioTrack slimTrack(String title, String url, long duration) throws Exception { return SLIM ? new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration > 0 ? duration : YtDlp.duration(YtDlp.probe(url, "")), url, false, url), "", false) : null; }
@@ -172,11 +175,13 @@ public final class MusicPlayer {
     }
 
     private static NavigableMap<Integer, Video> videoUrls(StreamInfo info) {
-        NavigableMap<Integer, Video> videos = new TreeMap<>();
+        NavigableMap<Integer, VideoStream> best = new TreeMap<>();
         for (VideoStream stream : info.getVideoOnlyStreams()) {
             if (stream.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP || stream.getContent() == null || stream.getContent().isBlank()) continue;
-            videos.putIfAbsent(stream.getHeight(), new Video(stream.getContent(), stream.getWidth(), stream.getHeight(), ""));
+            best.merge(stream.getHeight(), stream, (a, b) -> FPS.compare((double) b.getFps(), (double) a.getFps()) < 0 ? b : a);
         }
+        NavigableMap<Integer, Video> videos = new TreeMap<>();
+        best.forEach((height, stream) -> videos.put(height, new Video(stream.getContent(), stream.getWidth(), height, "", false)));
         return videos;
     }
 

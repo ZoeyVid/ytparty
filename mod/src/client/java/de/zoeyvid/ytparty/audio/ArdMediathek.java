@@ -72,7 +72,7 @@ final class ArdMediathek {
                 JsonObject audio = media.getAsJsonArray("audios").get(0).getAsJsonObject();
                 if (!"standard".equals(string(audio, "kind"))) continue;
                 int height = integer(media, "maxVResolutionPx", 0);
-                ("deu".equals(string(audio, "languageCode")) ? german : other).putIfAbsent(height > 0 ? height : Integer.MAX_VALUE, new MusicPlayer.Video(string(media, "url"), integer(media, "maxHResolutionPx", 0), height, ""));
+                ("deu".equals(string(audio, "languageCode")) ? german : other).putIfAbsent(height > 0 ? height : Integer.MAX_VALUE, new MusicPlayer.Video(string(media, "url"), integer(media, "maxHResolutionPx", 0), height, "", false));
             }
         }
         return german.isEmpty() ? other : german;

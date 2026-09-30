@@ -53,6 +53,7 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
 
     private boolean decode(AudioPipeline pipeline, AudioDataFormat format, boolean inputSeek) throws Exception {
         List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-loglevel", "error", "-protocol_whitelist", PROTOCOLS, "-reconnect", "1", "-reconnect_streamed", trackInfo.isStream ? "1" : "0", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "5xx", "-reconnect_delay_max", "5", "-rw_timeout", "3000000", "-headers", headers));
+        if (hls) command.addAll(List.of("-http_seekable", "0"));
         if (start > 0 && inputSeek) command.addAll(List.of("-ss", start + "ms", "-copyts", "-start_at_zero"));
         command.addAll(List.of("-i", trackInfo.uri));
         if (start > 0 && !inputSeek) command.addAll(List.of("-ss", start + "ms"));
