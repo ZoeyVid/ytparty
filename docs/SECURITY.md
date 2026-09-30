@@ -2,8 +2,11 @@
 
 ## Model
 
-The client mod only ever decodes audio and sends small control frames; it runs no remote code and
-opens no ports. The security surface is the **backend connection** and **who may control a party**.
+The client mod plays audio (and, if turned on, a picture‑in‑picture video) and sends small control
+frames; it opens no ports. It starts the system `ffmpeg` (video, livestreams, other sites) and, with
+*Other sites* on, `yt-dlp` as child processes. To read YouTube's stream URLs, NewPipeExtractor runs
+functions from YouTube's player JavaScript in the bundled Rhino interpreter, without access to Java
+classes. The security surface is the **backend connection** and **who may control a party**.
 
 - **On a Minecraft server** (server mod / plugin) the transport is Minecraft's own player connection —
   there is no extra crypto layer, and trust follows the server.
@@ -47,4 +50,4 @@ the clear — the encryption protects the link, not the operator. YouTube and AR
 resolved and audio is fetched **by each client**, not by the backend. With *Other sites* turned on,
 a party manager can make your client run `yt-dlp` and `ffmpeg` against any http(s) URL they add,
 which shows your IP address to that site and can make your client request hosts in your local
-network; that's why the setting is off by default.
+network or on your own computer; that's why the setting is off by default.

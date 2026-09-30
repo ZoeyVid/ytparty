@@ -13,8 +13,10 @@ the audio (extract → decode with lavaplayer → OpenAL), plus an optional pict
 the system `ffmpeg` decodes in a child process, paced by the local audio position (no protocol
 involvement). Livestreams and, when turned on, other sites resolved by the system `yt-dlp` are decoded
 by `ffmpeg` too, into lavaplayer's pipeline (`FfmpegAudioTrack`); a livestream isn't seekable, so every
-client plays it at its own live point. Party state lives in a **backend**; there are three
-interchangeable ones that all run the *same* logic:
+client plays it at its own live point. ffmpeg bridges short drops itself (`-reconnect*`); a live track
+that still ends is handled like a failed one and resolved once more, so a longer outage recovers or
+shows an error, and a stream that really ended can replay its tail once before the playlist moves on.
+Party state lives in a **backend**; there are three interchangeable ones that all run the *same* logic:
 
 - **relay** — standalone Go server, end‑to‑end encrypted, works across arbitrary servers
 - **server mod** — the client jar's server side, for a Fabric server

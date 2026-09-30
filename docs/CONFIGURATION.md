@@ -27,6 +27,7 @@ auto‑remove toggles all persist between sessions. Solo playlists are not persi
 live on the backend). Key binds (open the party UI, toggle the video) are under Options → Controls.
 The video needs `ffmpeg` on the `PATH`; without it, the video switches itself off with a hint as
 soon as it would start. *Other sites* (off by default) resolves every URL that isn't a YouTube video
-or playlist or an ARD Mediathek video with `yt-dlp` and plays it through `ffmpeg`, so both must be
-on the `PATH`. It also applies to tracks other party members add: with it off, your client doesn't
-contact those sites and reports the track as unplayable instead.
+or playlist or an ARD Mediathek video (so also YouTube channel links and ARD Mediathek live or show
+pages) with `yt-dlp` and plays it through `ffmpeg`, so both must be on the `PATH`. It also applies
+to tracks other party members add: with it off, your client doesn't contact those sites and reports
+the track as unplayable instead.
