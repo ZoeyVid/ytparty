@@ -16,6 +16,9 @@ by `ffmpeg` too, into lavaplayer's pipeline (`FfmpegAudioTrack`); a livestream i
 client plays it at its own live point. ffmpeg bridges short drops itself (`-reconnect*`); a live track
 that still ends is handled like a failed one and resolved once more, so a longer outage recovers or
 shows an error, and a stream that really ended can replay its tail once before the playlist moves on.
+Other‑site media of unknown length is live if it sends `icy-*` headers (Icecast/Shoutcast radio);
+otherwise it's a file whose length can't be read: also shown as LIVE (not seekable or synced, no
+video), but it isn't reconnected and ends normally, as ffmpeg can't tell its end from a dropped connection.
 Party state lives in a **backend**; there are three interchangeable ones that all run the *same* logic:
 
 - **relay** — standalone Go server, end‑to‑end encrypted, works across arbitrary servers

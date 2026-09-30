@@ -28,7 +28,7 @@ import static de.zoeyvid.ytparty.audio.ArdMediathek.string;
 
 final class YtDlp {
     private static final String HTTP = "[protocol~='^https?$']", HLS = "[protocol^=m3u8]";
-    private static final Pattern DURATION = Pattern.compile("Duration: (?:N/A|(\\d+):(\\d{2}):(\\d{2})\\.(\\d{2}))");
+    private static final Pattern DURATION = Pattern.compile("(?ims)(?<radio>^\\s+icy-.*?)?Duration: (?:N/A|(\\d+):(\\d{2}):(\\d{2})\\.(\\d{2}))");
 
     private YtDlp() {}
 
@@ -38,42 +38,44 @@ final class YtDlp {
         JsonElement info = JsonParser.parseString(output(new ProcessBuilder("yt-dlp", "--ignore-config", "--no-warnings", "--no-playlist", "-I", "1", "-J", "-f", "ba" + HTTP + "/ba" + HLS + "/b" + HTTP + "[height<=?480]/b" + HLS + "[height<=?480]/w" + HTTP + "/w" + HLS, "--", url)
             .redirectError(ProcessBuilder.Redirect.DISCARD), 60));
         while (info instanceof JsonObject playlist && playlist.get("entries") instanceof JsonArray entries) info = entries.isEmpty() ? JsonNull.INSTANCE : entries.get(0);
-        if (!(info instanceof JsonObject media) || string(media, "url") == null) throw new MusicPlayer.Unplayable("yt-dlp couldn't read this URL");
-        String audio = string(media, "url"), headers = headers(media), title = Objects.requireNonNullElse(string(media, "title"), url);
-        long duration = bool(media, "is_live") ? Units.DURATION_MS_UNKNOWN : media.get("duration") instanceof JsonPrimitive seconds ? Math.round(seconds.getAsDouble() * 1000) : 0;
-        if (duration == 0) duration = probe(audio, headers);
+        if (!(info instanceof JsonObject media) || !MusicPlayer.http(string(media, "url"))) throw new MusicPlayer.Unplayable("yt-dlp couldn't read this URL");
+        String audio = string(media, "url"), headers = headers(media), title = Objects.requireNonNullElse(string(media, "title"), url), page = string(media, "webpage_url");
+        boolean live = bool(media, "is_live");
+        long duration = live ? Units.DURATION_MS_UNKNOWN : media.get("duration") instanceof JsonPrimitive seconds ? Math.round(seconds.getAsDouble() * 1000) : 0;
+        if (duration == 0) {
+            Matcher probe = probe(audio, headers);
+            duration = probe.group(2) == null ? Units.DURATION_MS_UNKNOWN : ((Long.parseLong(probe.group(2)) * 60 + Long.parseLong(probe.group(3))) * 60 + Long.parseLong(probe.group(4))) * 1000 + Long.parseLong(probe.group(5)) * 10;
+            live = duration == Units.DURATION_MS_UNKNOWN && probe.group("radio") != null;
+        }
         NavigableMap<Integer, MusicPlayer.Video> videos = new TreeMap<>();
         if (duration != Units.DURATION_MS_UNKNOWN && media.get("formats") instanceof JsonArray formats) for (JsonElement e : formats) if (e instanceof JsonObject format) {
             int height = integer(format, "height", 0);
-            if (height > 0 && !"none".equals(string(format, "vcodec")) && string(format, "url") != null && Objects.requireNonNullElse(string(format, "protocol"), "").matches("https?|m3u8(_native)?"))
+            if (height > 0 && !"none".equals(string(format, "vcodec")) && MusicPlayer.http(string(format, "url")) && Objects.requireNonNullElse(string(format, "protocol"), "").matches("https?|m3u8(_native)?"))
                 videos.put(height, new MusicPlayer.Video(string(format, "url"), integer(format, "width", 0), height, headers(format)));
         }
-        return new MusicPlayer.Media(Objects.requireNonNullElse(string(media, "webpage_url"), url), title, audio, videos, new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration, audio, duration == Units.DURATION_MS_UNKNOWN, audio), headers));
+        return new MusicPlayer.Media(MusicPlayer.http(page) ? page : url, title, audio, videos, new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration, audio, live, audio), headers, Objects.requireNonNullElse(string(media, "protocol"), "").startsWith("m3u8")));
     }
 
     private static String headers(JsonObject format) {
         StringBuilder headers = new StringBuilder();
         JsonObject http = object(format, "http_headers");
-        if (http != null) for (Map.Entry<String, JsonElement> header : http.entrySet()) if (header.getValue().isJsonPrimitive()) headers.append(header.getKey()).append(": ").append(header.getValue().getAsString()).append("\r\n");
+        if (http != null) for (Map.Entry<String, JsonElement> header : http.entrySet()) if (header.getValue().isJsonPrimitive() && (header.getKey() + header.getValue().getAsString()).matches("[^\"\r\n]*")) headers.append(header.getKey()).append(": ").append(header.getValue().getAsString()).append("\r\n");
         return headers.toString();
     }
 
-    private static long probe(String url, String headers) throws Exception {
+    private static Matcher probe(String url, String headers) throws Exception {
         Matcher m = DURATION.matcher(output(new ProcessBuilder("ffmpeg", "-nostdin", "-hide_banner", "-protocol_whitelist", FfmpegAudioTrack.PROTOCOLS, "-rw_timeout", "15000000", "-headers", headers, "-i", url).redirectErrorStream(true), 20));
         if (!m.find()) throw new IOException("ffmpeg couldn't read " + url);
-        return m.group(1) == null ? Units.DURATION_MS_UNKNOWN : ((Long.parseLong(m.group(1)) * 60 + Long.parseLong(m.group(2))) * 60 + Long.parseLong(m.group(3))) * 1000 + Long.parseLong(m.group(4)) * 10;
+        return m;
     }
 
     private static String output(ProcessBuilder builder, int seconds) throws Exception {
         Path file = Files.createTempFile("ytparty", ".out");
         try {
             Process process = builder.redirectOutput(file.toFile()).start();
-            if (!process.waitFor(seconds, TimeUnit.SECONDS)) {
-                process.descendants().forEach(ProcessHandle::destroyForcibly);
-                process.destroyForcibly().waitFor();
-                throw new MusicPlayer.Unplayable(builder.command().getFirst() + " timed out");
-            }
-            return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
-        } finally { Files.deleteIfExists(file); }
+            try { if (process.waitFor(seconds, TimeUnit.SECONDS)) return new String(Files.readAllBytes(file), StandardCharsets.UTF_8); }
+            finally { process.descendants().forEach(ProcessHandle::destroyForcibly); process.destroyForcibly(); }
+            throw new MusicPlayer.Unplayable(builder.command().getFirst() + " timed out");
+        } finally { if (!file.toFile().delete()) file.toFile().deleteOnExit(); }
     }
 }

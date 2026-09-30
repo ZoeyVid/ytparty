@@ -4,6 +4,7 @@ import com.sedmelluq.discord.lavaplayer.filter.AudioPipeline;
 import com.sedmelluq.discord.lavaplayer.filter.AudioPipelineFactory;
 import com.sedmelluq.discord.lavaplayer.filter.PcmFormat;
 import com.sedmelluq.discord.lavaplayer.format.AudioDataFormat;
+import com.sedmelluq.discord.lavaplayer.tools.Units;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import com.sedmelluq.discord.lavaplayer.track.BaseAudioTrack;
@@ -20,11 +21,13 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
     static final String PROTOCOLS = "http,https,tcp,tls,crypto,httpproxy,data";
 
     private final String headers;
+    private final boolean hls;
     private volatile long start;
 
-    FfmpegAudioTrack(AudioTrackInfo info, String headers) {
+    FfmpegAudioTrack(AudioTrackInfo info, String headers, boolean hls) {
         super(info);
         this.headers = headers;
+        this.hls = hls;
     }
 
     @Override
@@ -33,12 +36,19 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
         AudioPipeline pipeline = AudioPipelineFactory.create(executor.getProcessingContext(), new PcmFormat(format.channelCount, format.sampleRate));
         try {
             executor.executeProcessingLoop(() -> {
-                if (decode(pipeline, format, true) || start >= trackInfo.length - 1000) return;
-                if (start == 0 || !decode(pipeline, format, false)) throw new IOException("ffmpeg returned no audio");
+                if (!decode(pipeline, format, true) && start < trackInfo.length - 1000) {
+                    if (start == 0) throw new IOException("ffmpeg returned no audio");
+                    if (hls) decode(pipeline, format, false);
+                }
+                while (executor.getAudioBuffer().getLastInputTimecode() != null) Thread.sleep(10);
+                executor.waitOnEnd();
             }, position -> { start = position; pipeline.seekPerformed(position, position); });
         }
         finally { pipeline.close(); }
     }
+
+    @Override
+    public boolean isSeekable() { return trackInfo.length != Units.DURATION_MS_UNKNOWN; }
 
     private boolean decode(AudioPipeline pipeline, AudioDataFormat format, boolean inputSeek) throws Exception {
         List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-loglevel", "error", "-protocol_whitelist", PROTOCOLS, "-reconnect", "1", "-reconnect_streamed", trackInfo.isStream ? "1" : "0", "-reconnect_on_network_error", "1", "-reconnect_delay_max", "5", "-rw_timeout", "3000000", "-headers", headers));
@@ -65,5 +75,5 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
     }
 
     @Override
-    protected AudioTrack makeShallowClone() { return new FfmpegAudioTrack(trackInfo, headers); }
+    protected AudioTrack makeShallowClone() { return new FfmpegAudioTrack(trackInfo, headers, hls); }
 }

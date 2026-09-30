@@ -39,6 +39,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -64,6 +65,7 @@ public final class MusicPlayer {
     private static final Set<String> INSTALLED = ConcurrentHashMap.newKeySet();
     public static volatile boolean otherSites;
     private volatile String playing;
+    private volatile Future<?> loading;
     private boolean mayRetry;
 
     public MusicPlayer() {
@@ -94,16 +96,20 @@ public final class MusicPlayer {
 
     private static ExecutorService executor(String name) { return Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, name); t.setDaemon(true); return t; }); }
 
+    static boolean http(String url) { return url != null && url.matches("(?i)https?://\\S+"); }
+
     private static Media media(String identifier) throws Exception {
-        if (!identifier.matches("(?i)https?://\\S+")) throw new Unplayable("Only http(s) URLs can be played");
+        if (!http(identifier)) throw new Unplayable("Only http(s) URLs can be played");
         Media cached = RESOLVED.get(identifier);
-        if (cached != null && (otherSites || ArdMediathek.id(identifier) != null || isYoutube(identifier))) return cached;
+        if (cached != null && (otherSites || builtIn(identifier))) return cached;
         String ard = ArdMediathek.id(identifier);
         Media media = ard != null ? ArdMediathek.resolve(identifier, ard) : isYoutube(identifier) ? youtube(identifier) : YtDlp.resolve(identifier);
         RESOLVED.put(identifier, media);
-        RESOLVED.put(media.identifier(), media);
+        if (builtIn(identifier) || !builtIn(media.identifier())) RESOLVED.put(media.identifier(), media);
         return media;
     }
+
+    private static boolean builtIn(String url) throws Exception { return ArdMediathek.id(url) != null || isYoutube(url); }
 
     private static boolean isYoutube(String url) throws Exception {
         return ServiceList.YouTube.getStreamLHFactory().acceptUrl(withoutList(url)) || ServiceList.YouTube.getPlaylistLHFactory().acceptUrl(url);
@@ -124,7 +130,7 @@ public final class MusicPlayer {
         if (!installed("ffmpeg", "-version")) throw new Unplayable("Livestreams need ffmpeg installed");
         String url = Utils.isNullOrEmpty(info.getHlsUrl()) ? info.getDashMpdUrl() : info.getHlsUrl();
         if (Utils.isNullOrEmpty(url)) throw new Unplayable("This YouTube livestream has no playable stream");
-        return new Media(identifier, info.getName(), url, Collections.emptyNavigableMap(), new FfmpegAudioTrack(new AudioTrackInfo(info.getName(), "", Units.DURATION_MS_UNKNOWN, url, true, url), ""));
+        return new Media(identifier, info.getName(), url, Collections.emptyNavigableMap(), new FfmpegAudioTrack(new AudioTrackInfo(info.getName(), "", Units.DURATION_MS_UNKNOWN, url, true, url), "", true));
     }
 
     static boolean installed(String command, String versionFlag) {
@@ -184,7 +190,8 @@ public final class MusicPlayer {
         lastTrack = null;
         mayRetry = true;
         stop();
-        RESOLVER.execute(() -> load(identifier, onTitle));
+        if (loading != null) loading.cancel(true);
+        loading = RESOLVER.submit(() -> load(identifier, onTitle));
     }
 
     private void load(String identifier, Consumer<String> onTitle) {
@@ -207,7 +214,7 @@ public final class MusicPlayer {
         mayRetry = false;
         String identifier = playing;
         forget(identifier);
-        RESOLVER.execute(() -> load(identifier, null));
+        loading = RESOLVER.submit(() -> load(identifier, null));
     }
 
     private void begin(AudioTrack track) {
@@ -252,7 +259,7 @@ public final class MusicPlayer {
     public void setPaused(boolean paused) { player.setPaused(paused); out.requestPause(paused); }
     public boolean isPaused() { return player.isPaused(); }
     public boolean seeking() { return seekTarget >= 0; }
-    public boolean live() { AudioTrack t = player.getPlayingTrack(); return t != null && t.getInfo().isStream; }
+    public boolean live() { AudioTrack t = player.getPlayingTrack(); return t != null && !t.isSeekable(); }
     public int seeks() { return seeks.get(); }
     public Video video(int height) {
         AudioTrack t = player.getPlayingTrack();
