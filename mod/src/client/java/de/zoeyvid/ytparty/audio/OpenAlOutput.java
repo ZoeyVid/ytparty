@@ -1,25 +1,28 @@
 package de.zoeyvid.ytparty.audio;
 
 import org.lwjgl.openal.AL;
-import org.lwjgl.openal.ALC;
+import org.lwjgl.openal.ALCapabilities;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
-import java.util.HashMap;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 
 import static org.lwjgl.openal.AL10.*;
-import static org.lwjgl.openal.ALC10.alcGetContextsDevice;
 import static org.lwjgl.openal.ALC10.alcGetCurrentContext;
 
 final class OpenAlOutput {
+    private static final int BUFFERS = 64;
     private final int sampleRate;
     private final ByteBuffer pcm;
     private final ArrayDeque<Integer> free = new ArrayDeque<>();
-    private final HashMap<Integer, Integer> queued = new HashMap<>();
+    private final LinkedHashMap<Integer, byte[]> queued = new LinkedHashMap<>();
+    private final ArrayDeque<byte[]> pending = new ArrayDeque<>();
     private volatile int aheadMs;
-    private long context;
+    private ALCapabilities caps;
     private int source;
+    private long elapsed, last;
     private boolean paused;
     private volatile boolean wantPaused;
     private volatile boolean wantFlush;
@@ -36,8 +39,8 @@ final class OpenAlOutput {
     void setGain(float g) { wantGain = g; }
     int bufferedAhead() { return aheadMs; }
 
-    void pump(byte[] data, int len, boolean hasFrame) {
-        if (!ensure()) return;
+    boolean ready() {
+        if (!ensure()) return idle();
         if (wantGain != appliedGain) { alSourcef(source, AL_GAIN, wantGain); appliedGain = wantGain; }
         if (wantFlush) { wantFlush = false; alSourceStop(source); reclaim(); }
         if (wantPaused != paused) {
@@ -47,54 +50,74 @@ final class OpenAlOutput {
         }
         reclaim();
         int bytes = 0;
-        for (int v : queued.values()) bytes += v;
+        for (byte[] d : queued.values()) bytes += d.length;
         aheadMs = (int) ((long) bytes * 1000 / ((long) sampleRate * 4));
-        if (!hasFrame || paused) return;
-        int buf = takeBuffer();
-        if (buf == 0) return;
-        pcm.clear();
-        pcm.put(data, 0, len).flip();
-        alBufferData(buf, AL_FORMAT_STEREO16, pcm, sampleRate);
-        queued.put(buf, len);
-        alSourceQueueBuffers(source, buf);
-        if (alGetSourcei(source, AL_SOURCE_STATE) != AL_PLAYING) alSourcePlay(source);
+        return !paused && !free.isEmpty();
+    }
+
+    void write(byte[] data, int len) {
+        byte[] copy = Arrays.copyOf(data, len);
+        if (source == 0) pending.add(copy); else queue(copy);
     }
 
     void shutdown() {
-        if (source != 0) { alSourceStop(source); reclaim(); alDeleteSources(source); source = 0; }
-        while (!free.isEmpty()) alDeleteBuffers(free.poll());
+        if (ensure()) { alSourceStop(source); reclaim(); alDeleteSources(source); while (!free.isEmpty()) alDeleteBuffers(free.poll()); }
         MemoryUtil.memFree(pcm);
     }
 
     private boolean ensure() {
-        long ctx = alcGetCurrentContext();
-        if (ctx == 0L) return false;
-        if (ctx != context || source == 0 || !alIsSource(source)) {
-            try { AL.setCurrentThread(AL.createCapabilities(ALC.createCapabilities(alcGetContextsDevice(ctx)))); }
-            catch (IllegalStateException e) { return false; }
-            context = ctx;
-            source = alGenSources();
-            free.clear();
-            queued.clear();
-            aheadMs = 0;
-            for (int i = 0; i < 64; i++) free.add(alGenBuffers());
-            paused = false;
-            wantPaused = false;
-            appliedGain = -1f;
-        }
-        return true;
+        if (alcGetCurrentContext() == 0L) { lost(); return false; }
+        ALCapabilities current;
+        try { current = AL.getCapabilities(); } catch (IllegalStateException e) { return false; }
+        if (current != caps) {
+            lost();
+            if ((source = alGenSources()) == 0) return false;
+            caps = current;
+            for (int i = 0; i < BUFFERS; i++) free.add(alGenBuffers());
+            alSourcef(source, AL_GAIN, appliedGain = wantGain);
+            while (!pending.isEmpty()) queue(pending.poll());
+        } else if (!alIsSource(source)) lost();
+        return source != 0;
+    }
+
+    private void lost() {
+        if (source == 0) return;
+        source = 0;
+        pending.addAll(queued.values());
+        queued.clear();
+        free.clear();
+        elapsed = 0;
+        last = System.nanoTime();
+    }
+
+    private boolean idle() {
+        long now = System.nanoTime();
+        if (wantFlush) { wantFlush = false; pending.clear(); }
+        paused = wantPaused;
+        if (!paused) elapsed += now - last;
+        last = now;
+        while (!pending.isEmpty() && elapsed >= nanos(pending.peek().length)) elapsed -= nanos(pending.poll().length);
+        if (pending.isEmpty()) elapsed = 0;
+        long bytes = 0;
+        for (byte[] d : pending) bytes += d.length;
+        aheadMs = (int) ((nanos(bytes) - elapsed) / 1_000_000);
+        return !paused && pending.size() < BUFFERS;
+    }
+
+    private long nanos(long bytes) { return bytes * 1_000_000_000L / (sampleRate * 4L); }
+
+    private void queue(byte[] data) {
+        int buf = free.poll();
+        pcm.clear();
+        pcm.put(data).flip();
+        alBufferData(buf, AL_FORMAT_STEREO16, pcm, sampleRate);
+        queued.put(buf, data);
+        alSourceQueueBuffers(source, buf);
+        if (!paused && alGetSourcei(source, AL_SOURCE_STATE) != AL_PLAYING) alSourcePlay(source);
     }
 
     private void reclaim() {
         int processed = alGetSourcei(source, AL_BUFFERS_PROCESSED);
         for (int i = 0; i < processed; i++) { int b = alSourceUnqueueBuffers(source); queued.remove(b); free.add(b); }
-    }
-
-    private int takeBuffer() {
-        for (int spin = 0; spin < 50 && free.isEmpty(); spin++) {
-            try { Thread.sleep(2); } catch (InterruptedException ignored) {}
-            reclaim();
-        }
-        return free.isEmpty() ? 0 : free.poll();
     }
 }

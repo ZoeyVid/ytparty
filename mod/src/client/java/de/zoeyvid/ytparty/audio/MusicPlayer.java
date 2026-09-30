@@ -69,6 +69,7 @@ public final class MusicPlayer {
     public MusicPlayer() {
         manager.getConfiguration().setOutputFormat(FORMAT);
         manager.setFrameBufferDuration(1000);
+        manager.setPlayerCleanupThreshold(Long.MAX_VALUE);
         manager.registerSourceManager(new HttpAudioSourceManager());
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
@@ -268,12 +269,14 @@ public final class MusicPlayer {
         byte[] buf = new byte[FORMAT.maximumChunkSize()];
         frame.setBuffer(ByteBuffer.wrap(buf));
         while (running) {
-            boolean has = player.provide(frame);
-            boolean stale = has && seekTarget >= 0 && Math.abs(frame.getTimecode() - seekTarget) > 60;
-            if (has && seekTarget >= 0 && !stale) seekTarget = -1;
-            out.pump(buf, has && !stale ? frame.getDataLength() : 0, has && !stale);
-            if (decodeFinished && out.bufferedAhead() == 0) { decodeFinished = false; onEnd.run(); }
-            if (!has) sleep();
+            try {
+                boolean has = out.ready() && player.provide(frame);
+                boolean stale = has && seekTarget >= 0 && Math.abs(frame.getTimecode() - seekTarget) > 60;
+                if (has && seekTarget >= 0 && !stale) seekTarget = -1;
+                if (has && !stale) out.write(buf, frame.getDataLength());
+                if (decodeFinished && out.bufferedAhead() == 0) { decodeFinished = false; onEnd.run(); }
+                if (!has) sleep();
+            } catch (Exception ignored) { sleep(); }
         }
         out.shutdown();
     }
