@@ -28,8 +28,8 @@ between sessions; the *Allowed sites* list persists too, but is only saved by it
 backend). Key binds (open the party UI, toggle the video) are under Options → Controls.
 The video needs `ffmpeg` installed; without it, the video switches itself off with a hint as
 soon as it would start. Every URL that isn't a YouTube video or playlist or an ARD Mediathek video
-(so also YouTube channel links and ARD Mediathek live or show pages) is resolved with `yt-dlp` and
-played through `ffmpeg` (both must be installed), but only if it starts with one of the URL
+(so also YouTube channel links and ARD Mediathek live or show pages) needs `yt-dlp` and `ffmpeg`: it is
+resolved with `yt-dlp` and played with lavaplayer or `ffmpeg`, but only if it starts with one of the URL
 prefixes under *Settings* → *Allowed sites* (one per line, empty by default; saved as `allowed-sites`
 in `config/ytparty-client.properties`, the prefixes separated by `\n`). Scheme and host are compared
 case‑insensitively, and a prefix only matches up to a `/`, `?`, `#` or the end of the URL:

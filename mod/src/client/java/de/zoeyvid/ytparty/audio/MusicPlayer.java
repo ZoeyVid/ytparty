@@ -1,5 +1,7 @@
 package de.zoeyvid.ytparty.audio;
 
+import com.sedmelluq.discord.lavaplayer.container.MediaContainer;
+import com.sedmelluq.discord.lavaplayer.container.MediaContainerRegistry;
 import com.sedmelluq.discord.lavaplayer.format.AudioDataFormat;
 import com.sedmelluq.discord.lavaplayer.format.StandardAudioDataFormats;
 import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
@@ -35,6 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -64,6 +67,7 @@ public final class MusicPlayer {
     private static final ExecutorService RESOLVER = executor("ytparty-resolve"), ADDER = executor("ytparty-add");
     private static volatile boolean newPipeReady;
     private static final Map<String, Media> RESOLVED = new ConcurrentHashMap<>();
+    static final Set<String> FFMPEG = ConcurrentHashMap.newKeySet();
     private static volatile List<String> allowedSites = List.of();
     private volatile String playing;
     private volatile Future<?> loading;
@@ -73,12 +77,13 @@ public final class MusicPlayer {
         manager.getConfiguration().setOutputFormat(FORMAT);
         manager.setFrameBufferDuration(1000);
         manager.setPlayerCleanupThreshold(Long.MAX_VALUE);
-        manager.registerSourceManager(new HttpAudioSourceManager());
+        manager.registerSourceManager(new HttpAudioSourceManager(new MediaContainerRegistry(MediaContainer.asList().stream().filter(probe -> probe != MediaContainer.OGG.probe && probe != MediaContainer.FLAC.probe).toList())));
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
                 if (reason != AudioTrackEndReason.FINISHED && reason != AudioTrackEndReason.LOAD_FAILED) return;
                 boolean played = ((InternalAudioTrack) t).getActiveExecutor().getAudioBuffer().hasReceivedFrames();
-                if (reason == AudioTrackEndReason.FINISHED && (played || seekTarget >= 0 && !(t instanceof FfmpegAudioTrack f && f.failed)) && !t.getInfo().isStream) { decodeFinished = true; if (played && seekTarget >= 0 && t.getPosition() == seekTarget) setPosition(seekTarget); }
+                if (!(t instanceof FfmpegAudioTrack) && t.getUserData() instanceof Media media && media.track() != null && (reason == AudioTrackEndReason.LOAD_FAILED || (seekTarget >= 0 ? seekTarget : t.getPosition()) < t.getDuration() - 1000) && !(played && t.getPosition() == seekTarget)) { if (played || seekTarget >= 0) pendingSeek = seekTarget >= 0 ? seekTarget : t.getPosition() - out.bufferedAhead(); start(ffmpeg(media), media, null); }
+                else if (reason == AudioTrackEndReason.FINISHED && (played || seekTarget >= 0 && !(t instanceof FfmpegAudioTrack f && f.failed)) && !t.getInfo().isStream) { decodeFinished = true; if (played && seekTarget >= 0 && t.getPosition() == seekTarget) setPosition(seekTarget); }
                 else { if (played) mayRetry = true; failed(playing, t instanceof FfmpegAudioTrack && !Tools.installed("ffmpeg") ? (t.getInfo().isStream ? "Livestreams" : "Other sites") + " need ffmpeg installed" : null); }
             }
         });
@@ -218,14 +223,16 @@ public final class MusicPlayer {
         try { media = media(identifier); } catch (Exception e) { failed(identifier, e instanceof Unplayable ? e.getMessage() : null); return; }
         if (ArdMediathek.id(identifier) != null && ArdMediathek.geoBlocked(media.url())) { failed(identifier, null); return; }
         if (!identifier.equals(playing)) return;
-        if (media.track() != null) { start(media.track().makeClone(), media, onTitle); return; }
+        if (media.track() instanceof FfmpegAudioTrack track && (!track.isSeekable() || track.hls || FFMPEG.contains(media.identifier()))) { start(track.makeClone(), media, onTitle); return; }
         manager.loadItem(media.url(), new AudioLoadResultHandler() {
-            public void trackLoaded(AudioTrack track) { if (identifier.equals(playing)) start(track, media, onTitle); }
+            public void trackLoaded(AudioTrack track) { if (identifier.equals(playing)) start(media.track() == null || Math.abs(track.getDuration() - media.track().getDuration()) < 5000 ? track : ffmpeg(media), media, onTitle); }
             public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) noMatches(); else trackLoaded(pick(list)); }
-            public void noMatches() { failed(identifier, null); }
-            public void loadFailed(FriendlyException e) { failed(identifier, null); }
+            public void noMatches() { if (identifier.equals(playing)) { if (media.track() != null) start(ffmpeg(media), media, onTitle); else failed(identifier, null); } }
+            public void loadFailed(FriendlyException e) { noMatches(); }
         });
     }
+
+    private static AudioTrack ffmpeg(Media media) { FFMPEG.add(media.identifier()); return media.track().makeClone(); }
 
     private void failed(String identifier, String reason) {
         String current = playing;

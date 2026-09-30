@@ -10,9 +10,15 @@ import com.sedmelluq.discord.lavaplayer.tools.Units;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -30,7 +36,7 @@ import static de.zoeyvid.ytparty.audio.ArdMediathek.string;
 
 final class YtDlp {
     private static final String HTTP = "[protocol~='^https?$']", HLS = "[protocol^=m3u8]";
-    private static final Pattern DURATION = Pattern.compile("(?ims)(?<radio>^\\s+icy-.*?)?Duration: (?:N/A|(\\d+):(\\d{2}):(\\d{2})\\.(\\d{2}))");
+    private static final Pattern DURATION = Pattern.compile("(?ims)(?<radio>^\\s+icy-.*?)?Duration: (?:N/A|(\\d+):(\\d{2}):(\\d{2})\\.(\\d{2}))(?<surround>.*?Audio: [^\\n]*? Hz, (?!mono|stereo|downmix|[12] channels))?");
 
     private YtDlp() {}
 
@@ -43,12 +49,13 @@ final class YtDlp {
         while (info instanceof JsonObject playlist && playlist.get("entries") instanceof JsonArray entries) info = entries.isEmpty() ? JsonNull.INSTANCE : entries.get(0);
         if (!(info instanceof JsonObject media) || !MusicPlayer.http(string(media, "url"))) throw new MusicPlayer.Unplayable("yt-dlp couldn't read this URL");
         String audio = string(media, "url"), headers = headers(media), title = Objects.requireNonNullElse(string(media, "title"), url), page = string(media, "webpage_url");
-        boolean live = bool(media, "is_live");
+        boolean live = bool(media, "is_live"), surround = integer(media, "audio_channels", 0) > 2;
         long duration = live ? Units.DURATION_MS_UNKNOWN : media.get("duration") instanceof JsonPrimitive seconds ? Math.round(seconds.getAsDouble() * 1000) : 0;
         if (duration == 0) {
             Matcher probe = probe(audio, headers);
             duration = probe.group(2) == null ? Units.DURATION_MS_UNKNOWN : ((Long.parseLong(probe.group(2)) * 60 + Long.parseLong(probe.group(3))) * 60 + Long.parseLong(probe.group(4))) * 1000 + Long.parseLong(probe.group(5)) * 10;
             live = duration == Units.DURATION_MS_UNKNOWN && probe.group("radio") != null;
+            surround |= probe.group("surround") != null;
         }
         NavigableMap<Integer, MusicPlayer.Video> videos = new TreeMap<>();
         if (duration != Units.DURATION_MS_UNKNOWN && media.get("formats") instanceof JsonArray formats) for (JsonElement e : formats) if (e instanceof JsonObject format) {
@@ -56,7 +63,18 @@ final class YtDlp {
             if (height > 0 && !"none".equals(string(format, "vcodec")) && MusicPlayer.http(string(format, "url")) && Objects.requireNonNullElse(string(format, "protocol"), "").matches("https?|m3u8(_native)?"))
                 videos.put(height, new MusicPlayer.Video(string(format, "url"), integer(format, "width", 0), height, headers(format)));
         }
-        return new MusicPlayer.Media(MusicPlayer.http(page) ? page : url, title, audio, videos, new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration, audio, live, audio), headers, Objects.requireNonNullElse(string(media, "protocol"), "").startsWith("m3u8")));
+        String identifier = MusicPlayer.http(page) ? page : url;
+        FfmpegAudioTrack track = new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration, audio, live, audio), headers, Objects.requireNonNullElse(string(media, "protocol"), "").startsWith("m3u8"));
+        if (track.isSeekable() && !track.hls && (surround || !ranges(audio))) MusicPlayer.FFMPEG.addAll(List.of(url, identifier));
+        return new MusicPlayer.Media(identifier, title, audio, videos, track);
+    }
+
+    private static boolean ranges(String url) throws InterruptedException {
+        try {
+            HttpResponse<InputStream> response = ArdMediathek.HTTP.send(HttpRequest.newBuilder(URI.create(url)).header("Range", "bytes=1-1").timeout(Duration.ofSeconds(5)).build(), HttpResponse.BodyHandlers.ofInputStream());
+            response.body().close();
+            return response.statusCode() == 206;
+        } catch (IOException | IllegalArgumentException e) { return false; }
     }
 
     private static String headers(JsonObject format) {

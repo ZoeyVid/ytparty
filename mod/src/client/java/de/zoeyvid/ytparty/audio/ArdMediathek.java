@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 
 final class ArdMediathek {
     private static final Pattern URL = Pattern.compile("https?://(?:(?:beta|www)\\.)?ardmediathek\\.de/(?:[^/]+/)?(?:player|video)/(?:[^?#]+/)?([a-zA-Z0-9]+)/?(?:[?#].*)?");
-    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build();
+    static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build();
 
     private ArdMediathek() {}
 

@@ -7,14 +7,18 @@ What each component pulls in and why. Exact versions are pinned in the build fil
 - **Fabric API** + **Fabric Loom** — the mod loader API and the Gradle plugin that maps Minecraft.
 - **NewPipeExtractor** + **lavaplayer** — NewPipeExtractor resolves a YouTube URL to a direct audio
   stream, lavaplayer decodes it to PCM, in‑JVM (a livestream resolves to an HLS or DASH URL that ffmpeg
-  plays instead). **Bundled** into the client jar via the Shadow plugin (that's why the client jar is
-  large; the slim server jar has no audio and stays tiny).
+  plays instead); it also plays the media files yt-dlp resolves for other sites. **Bundled** into the
+  client jar via the Shadow plugin (that's why the client jar is large; the slim server jar has no audio
+  and stays tiny).
 - ARD Mediathek URLs are resolved against ARD's own API (no key needed) with the JDK HTTP client and
   the Gson that ships with Minecraft — no extra library.
 - **ffmpeg** (optional, installed on the system, not bundled) — decodes the picture‑in‑picture video,
-  YouTube livestreams and everything from other sites. The client starts the `ffmpeg` it finds as a
+  YouTube livestreams and whatever lavaplayer can't play from other sites (livestreams, HLS, OGG, FLAC,
+  more than two channels, files of unknown length, servers that ignore range requests, or when
+  lavaplayer fails, yields no audio or breaks off). The client starts `ffmpeg` as a
   child process and reads raw frames or PCM from it; the PCM goes through lavaplayer's pipeline like
-  any other track. Without it, everything except these works.
+  any other track. Without it, everything except these works, and nothing from other sites plays:
+  they always need both ffmpeg and yt-dlp.
 - **yt-dlp** (optional, installed on the system, not bundled) — resolves URLs from other sites (and
   their livestreams and playlists) listed under *Allowed sites*. The client runs `yt-dlp` once per
   URL and reads its JSON; YouTube video and playlist URLs and ARD Mediathek video URLs

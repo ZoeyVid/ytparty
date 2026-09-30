@@ -11,11 +11,16 @@ concrete versions live in the build files, not here, so they don't rot.
 Synchronised YouTube and ARD Mediathek listening in Minecraft. A Fabric **client mod** does the UI and
 the audio (extract → decode with lavaplayer → OpenAL), plus an optional picture‑in‑picture video that
 the system `ffmpeg` decodes in a child process, paced by the local audio position (no protocol
-involvement). Livestreams and allow‑listed other sites resolved by the system `yt-dlp` are decoded
-by `ffmpeg` too, into lavaplayer's pipeline (`FfmpegAudioTrack`); a livestream isn't seekable, so every
-client plays it at its own live point. ffmpeg bridges short drops itself (`-reconnect*`); a live track
-that still ends is handled like a failed one and resolved once more, so a longer outage recovers or
-shows an error, and a stream that really ended can replay its tail once before the playlist moves on.
+involvement). Livestreams are decoded by `ffmpeg` too, into lavaplayer's pipeline (`FfmpegAudioTrack`);
+a livestream isn't seekable, so every client plays it at its own live point. ffmpeg bridges short drops
+itself (`-reconnect*`); a live track that still ends is handled like a failed one and resolved once
+more, so a longer outage recovers or shows an error, and a stream that really ended can replay its tail
+once before the playlist moves on. Allow‑listed other sites are resolved by the system `yt-dlp` and
+played by lavaplayer first; livestreams, HLS, files of unknown length, more than two channels (if
+yt-dlp or ffmpeg's length probe reports them; lavaplayer would keep only the first two), servers that
+ignore `Range` and whatever lavaplayer can't play properly (load error, no audio, a length other than
+yt-dlp's, OGG, FLAC) go to `FfmpegAudioTrack` instead, and a lavaplayer track that ends over a second
+early continues there. That switch uses up no retry and is remembered per media.
 Other‑site media of unknown length is live if it sends `icy-*` headers (Icecast/Shoutcast radio);
 otherwise it's a file whose length can't be read: also shown as LIVE (not seekable or synced, no
 video), but it isn't reconnected and ends normally, as ffmpeg can't tell its end from a dropped connection.
