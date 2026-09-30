@@ -64,7 +64,7 @@ public final class MusicPlayer {
     private Consumer<String> onError = reason -> {};
     private AudioTrack lastTrack;
     private volatile boolean decodeFinished;
-    private volatile long seekTarget = -1, pendingSeek = -1, timecode;
+    private volatile long seekTarget = -1, pendingSeek = -1, seekedAt, timecode;
     private final AtomicInteger seeks = new AtomicInteger();
 
     private static final AtomicReferenceFieldUpdater<MusicPlayer, String> PLAYING = AtomicReferenceFieldUpdater.newUpdater(MusicPlayer.class, String.class, "playing");
@@ -86,7 +86,7 @@ public final class MusicPlayer {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
                 if (reason != AudioTrackEndReason.FINISHED && reason != AudioTrackEndReason.LOAD_FAILED) return;
                 boolean played = ((InternalAudioTrack) t).getActiveExecutor().getAudioBuffer().hasReceivedFrames();
-                if (!(t instanceof FfmpegAudioTrack) && t.getUserData() instanceof Media media && media.track() != null && (reason == AudioTrackEndReason.LOAD_FAILED || (seekTarget >= 0 ? seekTarget : t.getPosition()) < t.getDuration() - 1000) && !(played && t.getPosition() == seekTarget)) { if (played || seekTarget >= 0) pendingSeek = seekTarget >= 0 ? seekTarget : t.getPosition() - out.bufferedAhead(); start(ffmpeg(media), media, null); }
+                if (!(t instanceof FfmpegAudioTrack) && t.getUserData() instanceof Media media && media.track() != null && (reason == AudioTrackEndReason.LOAD_FAILED || (seekTarget >= 0 ? seekTarget : t.getPosition()) < t.getDuration() - 1000) && !(played && t.getPosition() == seekTarget)) { if (seekTarget < 0) seekedAt = System.nanoTime(); if (played || seekTarget >= 0) pendingSeek = seekTarget >= 0 ? seekTarget : t.getPosition() - out.bufferedAhead(); start(ffmpeg(media), media, null); }
                 else if (reason == AudioTrackEndReason.FINISHED && (played || seekTarget >= 0 && !(t instanceof FfmpegAudioTrack f && f.failed)) && !t.getInfo().isStream) { decodeFinished = true; if (played && seekTarget >= 0 && t.getPosition() == seekTarget) setPosition(seekTarget); }
                 else { if (played) mayRetry = true; failed(playing, t instanceof FfmpegAudioTrack && !Tools.installed("ffmpeg") ? (SLIM ? NEEDS_FFMPEG : (t.getInfo().isStream ? "Livestreams" : "Other sites") + " need ffmpeg installed") : null); }
             }
@@ -235,12 +235,12 @@ public final class MusicPlayer {
         if (ArdMediathek.id(identifier) != null && ArdMediathek.geoBlocked(media.url())) { failed(identifier, null); return; }
         if (!identifier.equals(playing)) return;
         if (media.track() instanceof FfmpegAudioTrack track && (SLIM || !track.isSeekable() || track.hls || FFMPEG.contains(media.identifier()))) { start(track.makeClone(), media, onTitle); return; }
-        manager.loadItem(media.url(), new AudioLoadResultHandler() {
+        Thread.ofVirtual().start(() -> manager.loadItemSync(media.url(), new AudioLoadResultHandler() {
             public void trackLoaded(AudioTrack track) { if (identifier.equals(playing)) start(media.track() == null || Math.abs(track.getDuration() - media.track().getDuration()) < 5000 ? track : ffmpeg(media), media, onTitle); }
             public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) noMatches(); else trackLoaded(pick(list)); }
             public void noMatches() { if (identifier.equals(playing)) { if (media.track() != null) start(ffmpeg(media), media, onTitle); else failed(identifier, null); } }
             public void loadFailed(FriendlyException e) { noMatches(); }
-        });
+        }));
     }
 
     private static AudioTrack ffmpeg(Media media) { FFMPEG.add(media.identifier()); return media.track().makeClone(); }
@@ -268,7 +268,7 @@ public final class MusicPlayer {
         lastTrack = track;
         begin(track);
         long seek = pendingSeek;
-        if (seek >= 0) setPosition(seek);
+        if (seek >= 0) setPosition(player.isPaused() ? seek : seek + (System.nanoTime() - seekedAt) / 1_000_000);
         if (onTitle != null) onTitle.accept(media.title() != null ? media.title() : track.getInfo().title);
     }
 
@@ -287,6 +287,7 @@ public final class MusicPlayer {
         AudioTrack t = player.getPlayingTrack();
         if (t == null && decodeFinished && lastTrack != null) begin(t = lastTrack.makeClone());
         pendingSeek = t == null ? ms : -1;
+        seekedAt = System.nanoTime();
         if (t != null && t.isSeekable()) { long p = Math.max(0, Math.min(t.getDuration() - 1, ms)); t.setPosition(p); seekTarget = p; seeks.incrementAndGet(); out.requestFlush(); }
     }
 

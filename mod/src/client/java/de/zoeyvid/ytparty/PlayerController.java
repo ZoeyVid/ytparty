@@ -48,14 +48,14 @@ public final class PlayerController {
     private List<String> relayPlayers = List.of();
     private byte partySbFlags = SponsorBlock.FLAG_ALL;
     private boolean repeatOne = false;
-    private int partyGeneration;
+    private volatile int partyGeneration;
     private int nextLocalId = 1;
     private List<SponsorBlock.Segment> segments = List.of();
     private String segmentsUri = "";
     private int carryIndex = -1;
     private boolean carryPaused;
 
-    private PlayerController() { sink = localSink; audio.setOnEnd(() -> Minecraft.getInstance().execute(this::onTrackEnded)); audio.setOnError(reason -> Minecraft.getInstance().execute(() -> onTrackFailed(reason))); }
+    private PlayerController() { sink = localSink; audio.setOnEnd(() -> onTrackEnded(partyGeneration)); audio.setOnError(reason -> Minecraft.getInstance().execute(() -> onTrackFailed(reason))); }
 
     public void setBackend(Sink s) { backend = s; sink = localSink; }
 
@@ -223,7 +223,7 @@ public final class PlayerController {
         if (t != null) sink.send(SyncProtocol.setTrack(t.id()));
     }
 
-    private void onTrackEnded() { if (ctrl()) sink.send(SyncProtocol.trackEnded(partyGeneration)); }
+    private void onTrackEnded(int generation) { Minecraft.getInstance().execute(() -> { if (ctrl()) sink.send(SyncProtocol.trackEnded(generation)); }); }
 
     private void onTrackFailed(String reason) {
         Track t = playlist.get(currentIndex);
