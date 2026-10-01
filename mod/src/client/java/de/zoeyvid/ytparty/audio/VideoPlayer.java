@@ -26,11 +26,11 @@ public final class VideoPlayer {
         Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
     }
 
-    public void frame(String url, String headers, boolean hls, boolean live, int seeks, int width, int height, Sink sink) throws IOException {
+    public void frame(String url, String headers, String cookies, boolean hls, boolean live, int seeks, int width, int height, Sink sink) throws IOException {
         if (session != null && session.failed && !session.url.equals(failedUrl)) { failedUrl = session.url; onFailure.run(); }
         long restart = session != null && session.url.equals(url) && session.seeks == seeks ? session.restart : 0;
         if (session != null && (restart > 0 || session.closed || session.failed && System.nanoTime() - session.started > 5_000_000_000L || !session.url.equals(url) || session.seeks != seeks || (session.width != width || session.height != height) && System.nanoTime() - session.started > 500_000_000L)) stop();
-        if (session == null && url != null) session = new Session(url, headers, hls, live, seeks, width, height, position.getAsLong() + restart, restart);
+        if (session == null && url != null) session = new Session(url, headers, cookies, hls, live, seeks, width, height, position.getAsLong() + restart, restart);
         if (session == null) return;
         session.polled = System.nanoTime();
         byte[] pixels = session.latest.getAndSet(null);
@@ -56,7 +56,7 @@ public final class VideoPlayer {
         private volatile boolean closed, failed;
         private volatile long polled = System.nanoTime(), restart;
 
-        Session(String url, String headers, boolean hls, boolean live, int seeks, int width, int height, long start, long ahead) throws IOException {
+        Session(String url, String headers, String cookies, boolean hls, boolean live, int seeks, int width, int height, long start, long ahead) throws IOException {
             this.url = url;
             this.live = live;
             this.seeks = seeks;
@@ -64,7 +64,7 @@ public final class VideoPlayer {
             this.height = height;
             this.start = start;
             this.ahead = ahead;
-            List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-loglevel", "error", "-protocol_whitelist", FfmpegAudioTrack.PROTOCOLS, "-reconnect", "1", "-rw_timeout", "10000000", "-headers", headers, "-hwaccel", "auto"));
+            List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-loglevel", "error", "-protocol_whitelist", FfmpegAudioTrack.PROTOCOLS, "-reconnect", "1", "-rw_timeout", "10000000", "-headers", headers, "-cookies", cookies, "-hwaccel", "auto"));
             if (hls) command.addAll(List.of("-http_seekable", "0"));
             if (start > 0 && !live) command.addAll(List.of("-ss", start + "ms", "-copyts", "-start_at_zero"));
             command.addAll(List.of("-i", url, "-an", "-sn", "-dn", "-vf", "fps=" + FPS + ",scale=" + width + ":" + height + ":force_original_aspect_ratio=decrease,pad=" + width + ":" + height + ":-1:-1",

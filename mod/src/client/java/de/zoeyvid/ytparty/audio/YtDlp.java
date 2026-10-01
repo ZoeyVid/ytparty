@@ -50,11 +50,11 @@ final class YtDlp {
             .redirectError(ProcessBuilder.Redirect.DISCARD), 60));
         while (info instanceof JsonObject playlist && playlist.get("entries") instanceof JsonArray entries) info = entries.isEmpty() ? JsonNull.INSTANCE : entries.get(0);
         if (!(info instanceof JsonObject media) || !MusicPlayer.http(string(media, "url"))) throw new MusicPlayer.Unplayable("yt-dlp couldn't read this URL");
-        String audio = string(media, "url"), headers = headers(media), title = Objects.requireNonNullElse(string(media, "title"), url), page = string(media, "webpage_url");
+        String audio = string(media, "url"), headers = headers(media), cookies = cookies(media), title = Objects.requireNonNullElse(string(media, "title"), url), page = string(media, "webpage_url");
         boolean live = bool(media, "is_live"), surround = integer(media, "audio_channels", 0) > 2;
         long duration = live ? Units.DURATION_MS_UNKNOWN : media.get("duration") instanceof JsonPrimitive seconds ? Math.round(seconds.getAsDouble() * 1000) : 0;
         if (duration == 0) {
-            Matcher probe = probe(audio, headers);
+            Matcher probe = probe(audio, headers, cookies);
             duration = duration(probe);
             live = duration == Units.DURATION_MS_UNKNOWN && probe.group("radio") != null;
             surround |= probe.group("surround") != null;
@@ -66,9 +66,9 @@ final class YtDlp {
                 best.merge(height, format, (a, b) -> Comparator.comparingInt((JsonObject f) -> string(f, "protocol").startsWith("m3u8") ? 1 : string(f, "vcodec") == null ? 2 : 0).thenComparing(f -> f.get("fps") instanceof JsonPrimitive fps ? fps.getAsDouble() : 0d, MusicPlayer.FPS).compare(b, a) <= 0 ? b : a);
         }
         NavigableMap<Integer, MusicPlayer.Video> videos = new TreeMap<>();
-        best.forEach((height, format) -> videos.put(height, new MusicPlayer.Video(string(format, "url"), integer(format, "width", 0), height, headers(format), string(format, "protocol").startsWith("m3u8"))));
+        best.forEach((height, format) -> videos.put(height, new MusicPlayer.Video(string(format, "url"), integer(format, "width", 0), height, headers(format), cookies(format), string(format, "protocol").startsWith("m3u8"))));
         String identifier = MusicPlayer.http(page) ? page : url;
-        FfmpegAudioTrack track = new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration, audio, live, audio), headers, Objects.requireNonNullElse(string(media, "protocol"), "").startsWith("m3u8"));
+        FfmpegAudioTrack track = new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration, audio, live, audio), headers, cookies, Objects.requireNonNullElse(string(media, "protocol"), "").startsWith("m3u8"));
         if (!MusicPlayer.SLIM && track.isSeekable() && !track.hls && (surround || !ranges(audio))) MusicPlayer.FFMPEG.addAll(List.of(url, identifier));
         return new MusicPlayer.Media(identifier, title, audio, videos, track);
     }
@@ -86,7 +86,7 @@ final class YtDlp {
         Pattern.compile("#EXT-X-STREAM-INF:(?=[^\\n]*RESOLUTION=(\\d+)x(\\d+))(?=(?:[^\\n]*FRAME-RATE=([\\d.]+))?)[^\\n]*\\n(?:#[^\\n]*\\n)*([^#\\s]\\S*)").matcher(ArdMediathek.HTTP.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString()).body())
             .results().forEach(variant -> best.merge(Integer.parseInt(variant.group(2)), variant, (a, b) -> Comparator.comparing((MatchResult v) -> v.group(3) == null ? 0d : Double.parseDouble(v.group(3)), MusicPlayer.FPS).compare(b, a) < 0 ? b : a));
         NavigableMap<Integer, MusicPlayer.Video> videos = new TreeMap<>();
-        best.forEach((height, variant) -> videos.put(height, new MusicPlayer.Video(URI.create(url).resolve(variant.group(4)).toString(), Integer.parseInt(variant.group(1)), height, "", true)));
+        best.forEach((height, variant) -> videos.put(height, new MusicPlayer.Video(URI.create(url).resolve(variant.group(4)).toString(), Integer.parseInt(variant.group(1)), height, "", "", true)));
         return videos;
     }
 
@@ -97,8 +97,12 @@ final class YtDlp {
         return headers.toString();
     }
 
-    static Matcher probe(String url, String headers) throws Exception {
-        Matcher m = DURATION.matcher(output(new ProcessBuilder("ffmpeg", "-nostdin", "-hide_banner", "-protocol_whitelist", FfmpegAudioTrack.PROTOCOLS, "-rw_timeout", "15000000", "-headers", headers, "-i", url).redirectErrorStream(true), 20));
+    private static String cookies(JsonObject format) {
+        return Stream.ofNullable(string(format, "cookies")).flatMap(cookies -> Stream.of(cookies.split("; (?!(?:Domain|Path|Expires|Version)=|Secure(?:;|$))"))).map(cookie -> cookie.replaceFirst("^([^=]*=)\"([^\"\\\\]*)\"(?=;|$)", "$1$2")).filter(cookie -> cookie.matches("[^\"\r\n]*")).collect(Collectors.joining("\n"));
+    }
+
+    static Matcher probe(String url, String headers, String cookies) throws Exception {
+        Matcher m = DURATION.matcher(output(new ProcessBuilder("ffmpeg", "-nostdin", "-hide_banner", "-protocol_whitelist", FfmpegAudioTrack.PROTOCOLS, "-rw_timeout", "15000000", "-headers", headers, "-cookies", cookies, "-i", url).redirectErrorStream(true), 20));
         if (!m.find()) throw new IOException("ffmpeg couldn't read " + url);
         return m;
     }

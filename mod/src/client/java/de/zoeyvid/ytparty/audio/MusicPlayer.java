@@ -98,7 +98,7 @@ public final class MusicPlayer {
     }
 
     record Media(String identifier, String title, String url, NavigableMap<Integer, Video> videos, AudioTrack track) {}
-    public record Video(String url, int width, int height, String headers, boolean hls) {}
+    public record Video(String url, int width, int height, String headers, String cookies, boolean hls) {}
 
     static final Comparator<Double> FPS = Comparator.comparingDouble((Double fps) -> fps > 0 ? Math.max(fps / 30, 30 / fps) : Double.MAX_VALUE).thenComparing(Comparator.reverseOrder());
 
@@ -157,10 +157,10 @@ public final class MusicPlayer {
         if (!Tools.installed("ffmpeg")) throw new Unplayable("Livestreams need ffmpeg installed");
         String url = Utils.isNullOrEmpty(info.getHlsUrl()) ? info.getDashMpdUrl() : info.getHlsUrl();
         if (Utils.isNullOrEmpty(url)) throw new Unplayable("This YouTube livestream has no playable stream");
-        return new Media(identifier, info.getName(), url, YtDlp.hlsVideos(url), new FfmpegAudioTrack(new AudioTrackInfo(info.getName(), "", Units.DURATION_MS_UNKNOWN, url, true, url), "", !Utils.isNullOrEmpty(info.getHlsUrl())));
+        return new Media(identifier, info.getName(), url, YtDlp.hlsVideos(url), new FfmpegAudioTrack(new AudioTrackInfo(info.getName(), "", Units.DURATION_MS_UNKNOWN, url, true, url), "", "", !Utils.isNullOrEmpty(info.getHlsUrl())));
     }
 
-    static AudioTrack slimTrack(String title, String url, long duration) throws Exception { return SLIM ? new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration > 0 ? duration : YtDlp.duration(YtDlp.probe(url, "")), url, false, url), "", false) : null; }
+    static AudioTrack slimTrack(String title, String url, long duration) throws Exception { return SLIM ? new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration > 0 ? duration : YtDlp.duration(YtDlp.probe(url, "", "")), url, false, url), "", "", false) : null; }
 
     private static void forget(String identifier) { RESOLVED.remove(identifier); }
 
@@ -181,7 +181,7 @@ public final class MusicPlayer {
             best.merge(stream.getHeight(), stream, (a, b) -> FPS.compare((double) b.getFps(), (double) a.getFps()) < 0 ? b : a);
         }
         NavigableMap<Integer, Video> videos = new TreeMap<>();
-        best.forEach((height, stream) -> videos.put(height, new Video(stream.getContent(), stream.getWidth(), height, "", false)));
+        best.forEach((height, stream) -> videos.put(height, new Video(stream.getContent(), stream.getWidth(), height, "", "", false)));
         return videos;
     }
 
