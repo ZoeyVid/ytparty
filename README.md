@@ -59,13 +59,14 @@ relay; each one's server backend is simply ignored while the relay is connected.
    [ffmpeg](https://ffmpeg.org) installed (on your `PATH` or in a
    [usual install folder](docs/DEPENDENCIES.md)), the *Settings* screen can also show the video
    as a small picture‑in‑picture window, synced to the audio (toggle key `K`). ffmpeg also plays YouTube
-   livestreams (audio only); each listener hears them at their own live point, so they aren't synced or
+   livestreams with video; each listener gets them at their own live point, so they aren't synced or
    seekable. A short dropout is bridged by reconnecting; after a longer one the stream is loaded once
    more, and if that fails too you get an error. With [yt-dlp](https://github.com/yt-dlp/yt-dlp)
    installed as well, URLs from the other sites yt-dlp supports play too, but only from the sites you
    list under *Settings* → *Allowed sites* (none by default; e.g. `https://www.zdf.de`). Their
    livestreams and internet radios (Icecast, Shoutcast) play like YouTube livestreams; a file whose
    length can't be read is shown as LIVE too (not seekable or synced, no video), but it ends normally.
+   A livestream's video that starts later (turned on or resized mid‑stream) can be a few seconds off.
 2. **To sync with others**, either:
    - **Relay:** enter host / port / password in the in‑game *Relay* screen and connect. Run your own
      with Docker (`relay/compose.yaml` + `relay/Dockerfile`, image `ghcr.io/zoeyvid/ytparty`) — see

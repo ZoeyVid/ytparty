@@ -25,6 +25,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -59,7 +60,7 @@ final class YtDlp {
             surround |= probe.group("surround") != null;
         }
         NavigableMap<Integer, JsonObject> best = new TreeMap<>();
-        if (duration != Units.DURATION_MS_UNKNOWN && media.get("formats") instanceof JsonArray formats) for (JsonElement e : formats) if (e instanceof JsonObject format) {
+        if ((live || duration != Units.DURATION_MS_UNKNOWN) && media.get("formats") instanceof JsonArray formats) for (JsonElement e : formats) if (e instanceof JsonObject format) {
             int height = integer(format, "height", 0);
             if (height > 0 && !"none".equals(string(format, "vcodec")) && MusicPlayer.http(string(format, "url")) && Objects.requireNonNullElse(string(format, "protocol"), "").matches("https?|m3u8(_native)?"))
                 best.merge(height, format, (a, b) -> Comparator.comparingInt((JsonObject f) -> string(f, "protocol").startsWith("m3u8") ? 1 : string(f, "vcodec") == null ? 2 : 0).thenComparing(f -> f.get("fps") instanceof JsonPrimitive fps ? fps.getAsDouble() : 0d, MusicPlayer.FPS).compare(b, a) <= 0 ? b : a);
@@ -78,6 +79,15 @@ final class YtDlp {
             response.body().close();
             return response.statusCode() == 206;
         } catch (IOException | IllegalArgumentException e) { return false; }
+    }
+
+    static NavigableMap<Integer, MusicPlayer.Video> hlsVideos(String url) throws Exception {
+        NavigableMap<Integer, MatchResult> best = new TreeMap<>();
+        Pattern.compile("#EXT-X-STREAM-INF:(?=[^\\n]*RESOLUTION=(\\d+)x(\\d+))(?=(?:[^\\n]*FRAME-RATE=([\\d.]+))?)[^\\n]*\\n(?:#[^\\n]*\\n)*([^#\\s]\\S*)").matcher(ArdMediathek.HTTP.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString()).body())
+            .results().forEach(variant -> best.merge(Integer.parseInt(variant.group(2)), variant, (a, b) -> Comparator.comparing((MatchResult v) -> v.group(3) == null ? 0d : Double.parseDouble(v.group(3)), MusicPlayer.FPS).compare(b, a) < 0 ? b : a));
+        NavigableMap<Integer, MusicPlayer.Video> videos = new TreeMap<>();
+        best.forEach((height, variant) -> videos.put(height, new MusicPlayer.Video(URI.create(url).resolve(variant.group(4)).toString(), Integer.parseInt(variant.group(1)), height, "", true)));
+        return videos;
     }
 
     private static String headers(JsonObject format) {
