@@ -2,9 +2,11 @@ package de.zoeyvid.ytparty.server.party;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public final class Party {
@@ -14,6 +16,7 @@ public final class Party {
     public final Map<UUID, PermissionLevel> members = new LinkedHashMap<>();
     public final Map<UUID, PermissionLevel> invites = new HashMap<>();
     public final List<TrackRef> tracks = new ArrayList<>();
+    public final Set<UUID> failed = new HashSet<>();
     public boolean isPublic;
     public PermissionLevel publicJoinLevel = PermissionLevel.LISTEN;
     public int currentIndex = -1;

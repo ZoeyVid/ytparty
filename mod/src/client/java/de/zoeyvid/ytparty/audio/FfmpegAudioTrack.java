@@ -22,14 +22,16 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
 
     private final String headers, cookies;
     final boolean hls;
+    private final boolean reconnect;
     private volatile long start;
     volatile boolean failed;
 
-    FfmpegAudioTrack(AudioTrackInfo info, String headers, String cookies, boolean hls) {
+    FfmpegAudioTrack(AudioTrackInfo info, String headers, String cookies, boolean hls, boolean reconnect) {
         super(info);
         this.headers = headers;
         this.cookies = cookies;
         this.hls = hls;
+        this.reconnect = reconnect;
     }
 
     @Override
@@ -40,7 +42,7 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
             executor.executeProcessingLoop(() -> {
                 if (!decode(pipeline, format, true) && start < trackInfo.length - 1000) {
                     if (start == 0) throw new IOException("ffmpeg returned no audio");
-                    if (hls) decode(pipeline, format, false);
+                    if (hls || !YtDlp.ranges(trackInfo.uri)) decode(pipeline, format, false);
                 }
                 while (executor.getAudioBuffer().getLastInputTimecode() != null) Thread.sleep(10);
             }, position -> { start = position; pipeline.seekPerformed(position, position); });
@@ -53,7 +55,7 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
     public boolean isSeekable() { return trackInfo.length != Units.DURATION_MS_UNKNOWN; }
 
     private boolean decode(AudioPipeline pipeline, AudioDataFormat format, boolean inputSeek) throws Exception {
-        List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-loglevel", "error", "-protocol_whitelist", PROTOCOLS, "-reconnect", "1", "-reconnect_streamed", trackInfo.isStream ? "1" : "0", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "5xx", "-reconnect_delay_max", "5", "-rw_timeout", "3000000", "-headers", headers, "-cookies", cookies));
+        List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-loglevel", "error", "-protocol_whitelist", PROTOCOLS, "-reconnect", "1", "-reconnect_streamed", reconnect ? "1" : "0", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "5xx", "-reconnect_delay_max", "5", "-rw_timeout", "10000000", "-headers", headers, "-cookies", cookies));
         if (hls) command.addAll(List.of("-http_seekable", "0"));
         if (start > 0 && inputSeek) command.addAll(List.of("-ss", start + "ms", "-copyts", "-start_at_zero"));
         command.addAll(List.of("-i", trackInfo.uri));
@@ -78,5 +80,5 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
     }
 
     @Override
-    protected AudioTrack makeShallowClone() { return new FfmpegAudioTrack(trackInfo, headers, cookies, hls); }
+    protected AudioTrack makeShallowClone() { return new FfmpegAudioTrack(trackInfo, headers, cookies, hls, reconnect); }
 }

@@ -38,7 +38,7 @@ public final class VideoHud implements HudElement {
         MusicPlayer.Video video = ClientConfig.videoEnabled() && !mc.getWindow().isIconified() ? c.video(pixelHeight) : null;
         String next = video == null ? null : video.url();
         if (!Objects.equals(next, url)) { url = next; release(); }
-        try { player.frame(url, video == null ? "" : video.headers(), video == null ? "" : video.cookies(), video != null && video.hls(), c.live(), c.seeks(), pixelWidth, pixelHeight, this::upload); }
+        try { player.frame(video, c.live(), c.seeks(), pixelWidth, pixelHeight, this::upload); }
         catch (IOException e) { ClientConfig.setVideoEnabled(false); ClientSync.message("The video needs ffmpeg installed"); return; }
         if (texture == null) return;
         int x = (g.guiWidth() - w) * (ClientConfig.videoPosition() % 3) / 2, y = (g.guiHeight() - h) * (ClientConfig.videoPosition() / 3) / 2;

@@ -33,6 +33,7 @@ type conn struct {
 	out  chan []byte
 	quit chan struct{}
 	once sync.Once
+	part []byte
 }
 
 func (cc *conn) stop() {

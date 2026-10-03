@@ -14,16 +14,20 @@ the system `ffmpeg` decodes in a child process, paced by the local audio positio
 involvement). Livestreams are decoded by `ffmpeg` too, into lavaplayer's pipeline (`FfmpegAudioTrack`);
 a livestream isn't seekable, so every client plays it at its own live point. ffmpeg bridges short drops
 itself (`-reconnect*`); a live track that still ends is handled like a failed one and resolved once
-more, so a longer outage recovers or shows an error, and a stream that really ended can replay its tail
+more (a seekable track that breaks off over a second early too, continuing where it broke off), so a
+longer outage recovers or shows an error, and a stream that really ended can replay its tail
 once before the playlist moves on. Allow‑listed other sites are resolved by the system `yt-dlp` and
-played by lavaplayer first; livestreams, HLS, files of unknown length, more than two channels (if
-yt-dlp or ffmpeg's length probe reports them; lavaplayer would keep only the first two), servers that
+played by lavaplayer first; livestreams, HLS, files of unknown length, more than two channels (per
+yt-dlp or, if it has no count, an ffmpeg probe; lavaplayer would keep only the first two), servers that
 ignore `Range` and whatever lavaplayer can't play properly (load error, no audio, a length other than
 yt-dlp's, OGG, FLAC) go to `FfmpegAudioTrack` instead, and a lavaplayer track that ends over a second
 early continues there. That switch uses up no retry and is remembered per media.
 Other‑site media of unknown length is live if it sends `icy-*` headers (Icecast/Shoutcast radio);
 otherwise it's a file whose length can't be read: also shown as LIVE (not seekable or synced, no
-video), but it isn't reconnected and ends normally, as ffmpeg can't tell its end from a dropped connection.
+video), but it ends normally and isn't resolved again. ffmpeg only reconnects it after a drop if it
+comes chunked (one HTTP/1.1 request checks `Transfer-Encoding`): that keeps radios without `icy-*`
+headers (usually behind a proxy or CDN) going, while the last chunk still ends a file once; a plain
+response's end can't be told from a dropped connection (reconnecting would loop the file).
 Party state lives in a **backend**; there are three interchangeable ones that all run the *same* logic:
 
 - **relay** — standalone Go server, end‑to‑end encrypted, works across arbitrary servers
@@ -57,7 +61,7 @@ track‑end reuse the generation bump so a looped track re‑anchors cleanly.
 ## The protocol
 
 One length‑prefixed binary channel (`ytparty:sync`). Opcodes are the single source of truth in
-`common/Opcodes.java` (C2S 0–19, S2C 0–6). **`Control.apply` is shared** by all three backends, so a
+`common/Opcodes.java` (C2S 0–21, S2C 0–7). **`Control.apply` is shared** by all three backends, so a
 new *behaviour* is almost always client‑side interpretation over existing ops — you rarely add an
 opcode, and if you do it must land in all three. See [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
 

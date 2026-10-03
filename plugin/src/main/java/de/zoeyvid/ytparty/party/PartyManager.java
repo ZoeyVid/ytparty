@@ -62,6 +62,7 @@ public final class PartyManager {
         Party party = byId.get(id);
         if (party == null) return null;
         party.members.remove(player);
+        party.failed.remove(player);
         return finishIfUnmanaged(party);
     }
 

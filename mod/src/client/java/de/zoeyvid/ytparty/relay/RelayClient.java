@@ -3,6 +3,7 @@ package de.zoeyvid.ytparty.relay;
 import de.zoeyvid.ytparty.ClientConfig;
 import de.zoeyvid.ytparty.PlayerController;
 import de.zoeyvid.ytparty.net.ClientSync;
+import de.zoeyvid.ytparty.net.SyncProtocol;
 import net.minecraft.client.Minecraft;
 
 import java.io.ByteArrayOutputStream;
@@ -67,7 +68,7 @@ public final class RelayClient {
     public void send(byte[] data) {
         BlockingQueue<byte[]> q = sendQueue;
         if (q == null) return;
-        if (!q.offer(data)) cleanup("send buffer full");
+        for (byte[] part : SyncProtocol.parts(data, (1 << 20) - 16)) if (!q.offer(part)) { cleanup("send buffer full"); return; }
     }
 
     public void disconnect() { cleanup("disconnected"); }

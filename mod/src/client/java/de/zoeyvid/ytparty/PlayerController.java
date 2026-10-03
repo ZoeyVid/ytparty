@@ -54,8 +54,9 @@ public final class PlayerController {
     private String segmentsUri = "";
     private int carryIndex = -1;
     private boolean carryPaused;
+    private long creatingUntil;
 
-    private PlayerController() { sink = localSink; audio.setOnEnd(() -> onTrackEnded(partyGeneration)); audio.setOnError(reason -> Minecraft.getInstance().execute(() -> onTrackFailed(reason))); }
+    private PlayerController() { sink = localSink; audio.setOnEnd(() -> onTrackEnded(partyGeneration)); audio.setOnError(reason -> onTrackFailed(partyGeneration, reason)); }
 
     public void setBackend(Sink s) { backend = s; sink = localSink; }
 
@@ -121,6 +122,7 @@ public final class PlayerController {
 
     private boolean ctrl() { return sink != null && canManage(); }
     public boolean hasParty() { return !partyId.isEmpty(); }
+    public boolean creating() { return System.currentTimeMillis() < creatingUntil; }
 
     public void addUrl(String url, Runnable onDone) {
         if (!url.startsWith("http://") && !url.startsWith("https://")) { if (onDone != null) onDone.run(); return; }
@@ -159,7 +161,8 @@ public final class PlayerController {
     public int seeks() { return audio.seeks(); }
 
     public void createParty() {
-        if (!ClientSync.backendAvailable()) return;
+        if (creating() || hasParty() || !ClientSync.backendAvailable()) return;
+        creatingUntil = System.currentTimeMillis() + 5000;
         backend.send(SyncProtocol.create());
         backend.send(SyncProtocol.setRepeat(repeatOne));
         backend.send(SyncProtocol.setAutoRemove(autoRemovePlayed));
@@ -225,16 +228,19 @@ public final class PlayerController {
 
     private void onTrackEnded(int generation) { Minecraft.getInstance().execute(() -> { if (ctrl()) sink.send(SyncProtocol.trackEnded(generation)); }); }
 
-    private void onTrackFailed(String reason) {
-        Track t = playlist.get(currentIndex);
-        ClientSync.message("Couldn't play" + (t != null ? " \u201c" + t.title() + "\u201d" : " this track") + (reason != null ? ": " + reason : ""));
-        if (!hasParty() && ctrl()) { Track n = playlist.get(currentIndex + 1); if (n != null) sink.send(SyncProtocol.setTrack(n.id())); }
+    private void onTrackFailed(int generation, String reason) {
+        Minecraft.getInstance().execute(() -> {
+            Track t = playlist.get(currentIndex);
+            ClientSync.message("Couldn't play" + (t != null ? " \u201c" + t.title() + "\u201d" : " this track") + (reason != null ? ": " + reason : ""));
+            if (ctrl()) sink.send(SyncProtocol.trackFailed(generation));
+        });
     }
 
     public void applyState(SyncProtocol.State s) {
         boolean joined = !s.partyId().equals(partyId);
         partyId = s.partyId();
         sink = partyId.isEmpty() ? localSink : backend;
+        if (hasParty()) creatingUntil = 0;
         myLevel = s.myLevel();
         isPublic = s.isPublic();
         publicJoinLevel = s.publicJoinLevel();
@@ -269,7 +275,7 @@ public final class PlayerController {
         audio.setPaused(paused);
     }
 
-    public void onPartyLeft() { carryIndex = -1; myLevel = MANAGE; isPublic = false; partyGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }
+    public void onPartyLeft() { carryIndex = -1; creatingUntil = 0; myLevel = MANAGE; isPublic = false; partyGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }
 
     private void syncLocalParty() {
         Party p = localSink.party;

@@ -42,7 +42,15 @@ public final class SyncProtocol {
     public static byte[] setSponsorBlock(byte flags) { return write(C2S_SET_SPONSORBLOCK, d -> d.writeByte(flags)); }
     public static byte[] setRepeat(boolean on) { return write(C2S_SET_REPEAT, d -> d.writeBoolean(on)); }
     public static byte[] trackEnded(int generation) { return write(C2S_TRACK_ENDED, d -> d.writeInt(generation)); }
+    public static byte[] trackFailed(int generation) { return write(C2S_TRACK_FAILED, d -> d.writeInt(generation)); }
     public static byte[] setPlaylist(List<Track> tracks) { return write(C2S_SET_PLAYLIST, d -> { d.writeInt(tracks.size()); for (Track t : tracks) { d.writeUTF(t.uri()); d.writeUTF(cap(t.title(), 200)); } }); }
+
+    public static List<byte[]> parts(byte[] m, int max) {
+        if (m.length <= max) return List.of(m);
+        List<byte[]> out = new ArrayList<>();
+        for (int off = 0, n = max - 9; off < m.length; off += n) { int o = off; out.add(write(C2S_PART, d -> { d.writeInt(o); d.writeInt(m.length); d.write(m, o, Math.min(n, m.length - o)); })); }
+        return out;
+    }
 
     public static State readState(DataInputStream d) throws IOException {
         String partyId = d.readUTF();

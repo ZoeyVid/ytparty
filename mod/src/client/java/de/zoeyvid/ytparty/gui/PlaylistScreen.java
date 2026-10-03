@@ -187,13 +187,13 @@ public final class PlaylistScreen extends Screen {
             btn("Party\u2026", () -> this.minecraft.setScreenAndShow(new PartyScreen()), "Manage members and invites", left, y, 240);
             btn("Leave", c::leaveParty, "Leave the party", left + 244, y, 76);
         } else if (!c.pendingInvites().isEmpty()) {
-            btn("Create", c::createParty, ClientSync.backendAvailable() ? "Create a new listening party" : "Needs a relay or a server running YT Party", left, y, 110).active = ClientSync.backendAvailable();
+            btn("Create", c::createParty, ClientSync.backendAvailable() ? "Create a new listening party" : "Needs a relay or a server running YT Party", left, y, 110).active = ClientSync.backendAvailable() && !c.creating();
             var invites = c.pendingInvites();
             if (invites.size() == 1) { var first = invites.getFirst(); btn("Join " + first.id(), () -> c.acceptInvite(first.id()), "Accept the invite and join", left + 114, y, 120); }
             else btn("Invites (" + invites.size() + ")\u2026", () -> this.minecraft.setScreenAndShow(new InvitesScreen()), "View and accept pending invites", left + 114, y, 120);
             btn("Relay", () -> this.minecraft.setScreenAndShow(new RelayScreen()), "Relay connection settings", left + 238, y, 82);
         } else if (ClientSync.backendAvailable()) {
-            btn("Create party", c::createParty, "Create a new listening party", left, y, 152);
+            btn("Create party", c::createParty, "Create a new listening party", left, y, 152).active = !c.creating();
             btn("Browse\u2026", () -> this.minecraft.setScreenAndShow(new BrowseScreen()), "Browse public parties", left + 156, y, 80);
             btn("Relay", () -> this.minecraft.setScreenAndShow(new RelayScreen()), "Relay connection settings", left + 240, y, 80);
         } else {
@@ -225,7 +225,7 @@ public final class PlaylistScreen extends Screen {
         PlayerController c = PlayerController.INSTANCE;
         return c.hasParty() + "|" + c.partyId() + "|" + c.paused() + "|" + c.currentIndex() + "|" + c.myLevel() + "|" + c.live()
             + "|" + invitesSig(c) + "|" + RelayClient.INSTANCE.connected() + "|" + ClientSync.backendAvailable() + "|" + c.autoRemovePlayed()
-            + "|" + c.repeatOne() + "|" + c.partySbFlags() + "|" + c.playlist().version() + "|" + c.publicListVersion();
+            + "|" + c.repeatOne() + "|" + c.partySbFlags() + "|" + c.playlist().version() + "|" + c.publicListVersion() + "|" + c.creating();
     }
 
     private final class Timeline extends AbstractSliderButton {

@@ -23,8 +23,10 @@ What each component pulls in and why. Exact versions are pinned in the build fil
   both ffmpeg and yt-dlp; with the slim jar as the client, nothing plays without it.
 - **yt-dlp** (optional, installed on the system, not bundled) — resolves URLs from other sites (and
   their livestreams and playlists) listed under *Allowed sites*. The client runs `yt-dlp` once per
-  URL and reads its JSON; YouTube video and playlist URLs and ARD Mediathek video URLs
-  never go through it, but other YouTube and ARD Mediathek links (channels, live or show pages) do.
+  URL and reads its JSON (after a failure also `yt-dlp --version`, until that has worked once, so a
+  broken installation is reported with its error); YouTube video and playlist URLs and ARD Mediathek
+  video URLs never go through it, but other YouTube and ARD Mediathek links (channels, live or show
+  pages) do.
 - Both programs are looked for on the `PATH` first, then in the usual install folders the game's `PATH`
   often lacks (macOS apps started from the Dock or Finder, a launcher already running during the
   install): `/opt/homebrew/bin`, `/usr/local/bin` and `/opt/local/bin` on macOS; `/usr/local/bin`,

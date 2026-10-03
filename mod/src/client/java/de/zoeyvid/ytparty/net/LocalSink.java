@@ -17,7 +17,7 @@ public final class LocalSink implements PlayerController.Sink {
     public void send(byte[] data) {
         try (DataInputStream d = SyncProtocol.reader(data)) {
             byte op = d.readByte();
-            Control.Result r = Control.apply(party, op, d, "");
+            Control.Result r = Control.apply(party, op, d, SELF, "");
             switch (r.emit()) {
                 case STATE -> ClientSync.dispatch(ServerProtocol.state(party, SELF, u -> ""));
                 case SEEK -> ClientSync.dispatch(ServerProtocol.seek(r.seekMs(), party.generation));

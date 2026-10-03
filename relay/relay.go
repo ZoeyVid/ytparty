@@ -31,7 +31,7 @@ func (r *relay) of(tok string) *party {
 	return nil
 }
 func (r *relay) create(tok string) *party {
-	p := &party{id: r.newID(), members: map[string]int{tok: manage}, invites: map[string]int{}, curIndex: -1, autoRemove: true, sbFlags: 0x0F, nextTrackId: 1}
+	p := &party{id: r.newID(), members: map[string]int{tok: manage}, invites: map[string]int{}, failed: map[string]bool{}, curIndex: -1, autoRemove: true, sbFlags: 0x0F, nextTrackId: 1}
 	r.byID[p.id] = p
 	r.playerToParty[tok] = p.id
 	return p
@@ -67,6 +67,7 @@ func (r *relay) leave(tok string) *leaveRes {
 		return nil
 	}
 	delete(p.members, tok)
+	delete(p.failed, tok)
 	return r.finish(p)
 }
 func (r *relay) setLevel(p *party, target string, level int) *leaveRes {
@@ -132,10 +133,25 @@ func (r *relay) send(tok string, payload []byte) {
 	if c == nil {
 		return
 	}
-	select {
-	case c.out <- payload:
-	default:
-		c.stop()
+	frames := [][]byte{payload}
+	if len(payload) > 1<<20-16 {
+		frames = nil
+		for off, n := 0, 1<<20-16-9; off < len(payload); off += n {
+			w := &wtr{}
+			w.u8(sPart)
+			w.i32(off)
+			w.i32(len(payload))
+			w.b = append(w.b, payload[off:min(off+n, len(payload))]...)
+			frames = append(frames, w.b)
+		}
+	}
+	for _, f := range frames {
+		select {
+		case c.out <- f:
+		default:
+			c.stop()
+			return
+		}
 	}
 }
 func (r *relay) afterLeave(res *leaveRes) {
@@ -150,6 +166,7 @@ func (r *relay) afterLeave(res *leaveRes) {
 			r.send(tok, w.b)
 		}
 	} else {
+		res.p.skipFailed()
 		r.broadcast(res.p)
 	}
 }

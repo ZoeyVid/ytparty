@@ -28,6 +28,7 @@ type party struct {
 	members     map[string]int
 	invites     map[string]int
 	tracks      []trackRef
+	failed      map[string]bool
 	isPublic    bool
 	pubJoinLvl  int
 	curIndex    int

@@ -6,6 +6,7 @@ import de.zoeyvid.ytparty.party.PermissionLevel;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.messaging.MessageTooLargeException;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 
 import java.io.ByteArrayInputStream;
@@ -23,6 +24,7 @@ public final class ChannelBridge implements PluginMessageListener {
     private final Plugin plugin;
     private final PartyManager manager;
     private final Map<UUID, Bucket> buckets = new HashMap<>();
+    private final Map<UUID, Parts> parts = new HashMap<>();
 
     private static final class Bucket {
         double tokens;
@@ -52,7 +54,7 @@ public final class ChannelBridge implements PluginMessageListener {
         if (r == null) return;
         if (r.disbanded()) {
             for (UUID m : r.party().members.keySet()) { Player pl = Bukkit.getPlayer(m); if (pl != null) send(pl, ServerProtocol.left()); }
-        } else broadcast(r.party());
+        } else { skipFailed(r.party()); broadcast(r.party()); }
     }
 
     public void create(Player player) {
@@ -92,10 +94,11 @@ public final class ChannelBridge implements PluginMessageListener {
     public void onPluginMessageReceived(String channel, Player player, byte[] message) {
         if (!channel.equals(ServerProtocol.CHANNEL) || message.length == 0) return;
         synchronized (manager) {
-            if (!allow(player.getUniqueId())) return;
+            if (message[0] != ServerProtocol.C2S_PART && !allow(player.getUniqueId())) return;
             try (DataInputStream d = new DataInputStream(new ByteArrayInputStream(message))) {
                 byte op = d.readByte();
                 switch (op) {
+                    case ServerProtocol.C2S_PART: { byte[] m = parts.computeIfAbsent(player.getUniqueId(), k -> new Parts()).add(d); if (m != null && m[0] != ServerProtocol.C2S_PART) onPluginMessageReceived(channel, player, m); break; }
                     case ServerProtocol.C2S_CREATE: create(player); break;
                     case ServerProtocol.C2S_JOIN: join(player, d.readUTF()); break;
                     case ServerProtocol.C2S_LEAVE: leave(player, d.available() > 0 ? d.readUTF() : ""); break;
@@ -189,6 +192,12 @@ public final class ChannelBridge implements PluginMessageListener {
                 else p.currentIndex = -1;
                 break;
             }
+            case ServerProtocol.C2S_TRACK_FAILED: {
+                if (d.readInt() != p.generation) return;
+                p.failed.add(player.getUniqueId());
+                if (skipFailed(p)) broadcast(p);
+                return;
+            }
             case ServerProtocol.C2S_SET_PLAYLIST: {
                 int n = d.readInt();
                 if (n < 0 || n > 500) return;
@@ -226,8 +235,16 @@ public final class ChannelBridge implements PluginMessageListener {
             default: return;
         }
         if (p.curTrackId() != oldCur) p.generation++;
-        if (p.generation != genBefore) p.anchor(0);
+        if (p.generation != genBefore) { p.anchor(0); p.failed.clear(); }
         broadcast(p);
+    }
+
+    private static boolean skipFailed(Party p) {
+        if (p.currentIndex < 0) return false;
+        for (UUID u : p.members.keySet()) if (p.canManage(u) && !p.failed.contains(u)) return false;
+        if (!p.repeatOne && p.currentIndex < p.tracks.size() - 1) { p.currentIndex++; p.generation++; p.anchor(0); p.failed.clear(); }
+        else if (!p.paused) { p.paused = true; p.pausedSince = System.currentTimeMillis(); }
+        return true;
     }
 
     private static String cap(String s, int max) { return s.length() <= max ? s : s.substring(0, max); }
@@ -242,7 +259,10 @@ public final class ChannelBridge implements PluginMessageListener {
         return true;
     }
 
-    public void forget(UUID u) { buckets.remove(u); }
+    public void forget(UUID u) { buckets.remove(u); parts.remove(u); }
 
-    private void send(Player player, byte[] data) { player.sendPluginMessage(plugin, ServerProtocol.CHANNEL, data); }
+    private void send(Player player, byte[] data) {
+        try { player.sendPluginMessage(plugin, ServerProtocol.CHANNEL, data); }
+        catch (MessageTooLargeException e) { for (byte[] part : ServerProtocol.parts(data)) player.sendPluginMessage(plugin, ServerProtocol.CHANNEL, part); }
+    }
 }

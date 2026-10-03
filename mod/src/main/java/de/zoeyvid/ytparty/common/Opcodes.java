@@ -21,6 +21,8 @@ public final class Opcodes {
     public static final byte C2S_TRACK_ENDED = 17;
     public static final byte C2S_SET_PLAYLIST = 18;
     public static final byte C2S_LIST_PLAYERS = 19;
+    public static final byte C2S_PART = 20;
+    public static final byte C2S_TRACK_FAILED = 21;
 
     public static final byte S2C_STATE = 0;
     public static final byte S2C_INVITED = 1;
@@ -29,6 +31,7 @@ public final class Opcodes {
     public static final byte S2C_SEEK = 4;
     public static final byte S2C_PUBLIC_LIST = 5;
     public static final byte S2C_PLAYER_LIST = 6;
+    public static final byte S2C_PART = 7;
 
     private Opcodes() {}
 }

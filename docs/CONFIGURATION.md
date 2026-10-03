@@ -38,4 +38,4 @@ case‑insensitively, and a prefix only matches up to a `/`, `?`, `#` or the end
 what's below it (a URL with a `.` or `..` path segment, also percent‑encoded, never matches); a bare
 `https://` allows every https site. The list also applies to tracks other party members add: for any
 other site your client doesn't contact it and reports the track as unplayable instead, and removing
-the site of the current track from the list stops it.
+the site of the current track, or of the URL it was resolved from, from the list stops it.

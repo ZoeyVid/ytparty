@@ -38,6 +38,8 @@ public final class ServerProtocol {
     public static final byte C2S_SET_REPEAT = 16;
     public static final byte C2S_TRACK_ENDED = 17;
     public static final byte C2S_SET_PLAYLIST = 18;
+    public static final byte C2S_PART = 20;
+    public static final byte C2S_TRACK_FAILED = 21;
 
     public static final byte S2C_STATE = 0;
     public static final byte S2C_INVITED = 1;
@@ -45,6 +47,7 @@ public final class ServerProtocol {
     public static final byte S2C_LEFT = 3;
     public static final byte S2C_SEEK = 4;
     public static final byte S2C_PUBLIC_LIST = 5;
+    public static final byte S2C_PART = 7;
 
     private ServerProtocol() {}
 
@@ -106,6 +109,12 @@ public final class ServerProtocol {
     public static byte[] invited(String from, String partyId, PermissionLevel level) { return write(d -> { d.writeByte(S2C_INVITED); d.writeUTF(from); d.writeUTF(partyId); d.writeByte(level.id()); }); }
     public static byte[] message(String text) { return write(d -> { d.writeByte(S2C_MESSAGE); d.writeUTF(text); }); }
     public static byte[] publicList(List<Party> parties) { return write(d -> { d.writeByte(S2C_PUBLIC_LIST); d.writeInt(parties.size()); for (Party p : parties) { d.writeUTF(p.id); d.writeInt(p.members.size()); d.writeUTF(p.currentIndex >= 0 && p.currentIndex < p.tracks.size() ? p.tracks.get(p.currentIndex).title() : ""); } }); }
+
+    public static List<byte[]> parts(byte[] m) {
+        List<byte[]> out = new ArrayList<>();
+        for (int off = 0, n = 32766 - 9; off < m.length; off += n) { int o = off; out.add(write(d -> { d.writeByte(S2C_PART); d.writeInt(o); d.writeInt(m.length); d.write(m, o, Math.min(n, m.length - o)); })); }
+        return out;
+    }
 
     private interface Body { void write(DataOutputStream d) throws IOException; }
 

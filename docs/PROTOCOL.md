@@ -14,6 +14,15 @@ One binary, length‑prefixed channel named **`ytparty:sync`**.
 
 Each frame is **one opcode byte** followed by its payload.
 
+A frame too big for one message travels as `PART` frames (`i32 offset, i32 total`, then the next bytes
+of the whole frame); the receiver handles the reassembled frame like any other. Only frames that don't
+fit are split, so a side that doesn't know `PART` gets the same frames as before: the client splits
+frames over 32767 bytes for a Minecraft server (Bukkit's limit for serverbound plugin messages), the
+client and the relay split frames over the relay's 1 MiB frame limit, and the plugin splits a frame only
+when the server refuses to send it in one piece (Bukkit before 1.21 caps plugin messages at 32766 bytes).
+A receiver drops a sequence with a gap or a frame over 2 MiB; the Minecraft backends charge their rate
+limit for the reassembled frame, the relay for every frame.
+
 ## Encoding
 
 Fields use Java `DataOutputStream` conventions: `str` = 2‑byte length ＋ modified‑UTF‑8; `i32` /
@@ -49,6 +58,8 @@ column below is the minimum required.
 | 17 | TRACK_ENDED | `i32 gen` | MANAGE | the current track finished (ignored unless `gen` is current); backend advances per repeat / auto‑remove |
 | 18 | SET_PLAYLIST | `i32 count`, then `str uri, str title` × count | MANAGE | replace the whole playlist in one frame |
 | 19 | LIST_PLAYERS | — | any | request the online‑player list → `PLAYER_LIST` |
+| 20 | PART | `i32 offset, i32 total`, then bytes | any | a piece of a frame too big for one message (see Transport) |
+| 21 | TRACK_FAILED | `i32 gen` | MANAGE | you couldn't play the current track (ignored unless `gen` is current). Once every manager has reported it (since the track last changed or repeated), the backend skips it without removing it, or pauses on it with repeat on or at the end of the list; re‑checked when a manager leaves or loses MANAGE |
 
 ## Server → client
 
@@ -61,6 +72,7 @@ column below is the minimum required.
 | 4 | SEEK | `i64 ms, i32 gen` | jump to `ms`; carries the generation for the monotonic re‑anchor check |
 | 5 | PUBLIC_LIST | `i32 count`, then `str id, i32 members, str currentTitle` × count | answer to `LIST_PUBLIC` |
 | 6 | PLAYER_LIST | `i32 count`, then `str name` × count | answer to `LIST_PLAYERS` — online player names for the invite picker |
+| 7 | PART | `i32 offset, i32 total`, then bytes | a piece of a frame too big for one message (see Transport) |
 
 ### STATE payload
 

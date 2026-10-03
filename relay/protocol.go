@@ -29,6 +29,8 @@ const (
 	cTrackEnded
 	cSetPlaylist
 	cListPlayers
+	cPart
+	cTrackFailed
 )
 const (
 	sState = iota
@@ -38,6 +40,7 @@ const (
 	sSeek
 	sPublicList
 	sPlayerList
+	sPart
 )
 
 func (p *party) anchor(pos int64) {
@@ -60,6 +63,27 @@ func (p *party) elapsed() int64 {
 		e = 0
 	}
 	return e
+}
+
+func (p *party) skipFailed() bool {
+	if p.curIndex < 0 {
+		return false
+	}
+	for tok, l := range p.members {
+		if l == manage && !p.failed[tok] {
+			return false
+		}
+	}
+	if !p.repeatOne && p.curIndex < len(p.tracks)-1 {
+		p.curIndex++
+		p.generation++
+		p.anchor(0)
+		clear(p.failed)
+	} else if !p.paused {
+		p.paused = true
+		p.pausedSince = time.Now().UnixMilli()
+	}
+	return true
 }
 
 func (r *relay) stateTemplate(p *party) ([]byte, int) {
@@ -186,6 +210,26 @@ func (r *relay) onReceive(c *conn, payload []byte) {
 		r.doListPublic(tok)
 	case cListPlayers:
 		r.doListPlayers(tok)
+	case cPart:
+		off, total := rd.i32(), rd.i32()
+		if off == 0 {
+			c.part = nil
+			if total > 0 && total <= 1<<21 {
+				c.part = make([]byte, 0, total)
+			}
+		}
+		if rd.bad || c.part == nil || off != len(c.part) || total != cap(c.part) || len(rd.b)-rd.i > total-off {
+			c.part = nil
+			return
+		}
+		c.part = append(c.part, rd.b[rd.i:]...)
+		if len(c.part) == total {
+			msg := c.part
+			c.part = nil
+			if msg[0] != cPart {
+				r.onReceive(c, msg)
+			}
+		}
 	default:
 		r.control(tok, byte(op), rd)
 	}
@@ -393,6 +437,16 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		} else {
 			p.curIndex = -1
 		}
+	case cTrackFailed:
+		gen := rd.i32()
+		if rd.bad || gen != p.generation {
+			return
+		}
+		p.failed[tok] = true
+		if p.skipFailed() {
+			r.broadcast(p)
+		}
+		return
 	case cSetPlaylist:
 		n := rd.i32()
 		if rd.bad || n < 0 || n > 500 {
@@ -480,6 +534,7 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 	}
 	if p.generation != genBefore {
 		p.anchor(0)
+		clear(p.failed)
 	}
 	r.broadcast(p)
 }

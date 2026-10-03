@@ -65,7 +65,8 @@ relay; each one's server backend is simply ignored while the relay is connected.
    installed as well, URLs from the other sites yt-dlp supports play too, but only from the sites you
    list under *Settings* → *Allowed sites* (none by default; e.g. `https://www.zdf.de`). Their
    livestreams and internet radios (Icecast, Shoutcast) play like YouTube livestreams; a file whose
-   length can't be read is shown as LIVE too (not seekable or synced, no video), but it ends normally.
+   length can't be read is shown as LIVE too (not seekable or synced, no video), but it ends normally,
+   also on a dropout unless its server sends it chunked (as some radios without Icecast headers do).
    A livestream's video that starts later (turned on or resized mid‑stream) can be a few seconds off.
 2. **To sync with others**, either:
    - **Relay:** enter host / port / password in the in‑game *Relay* screen and connect. Run your own

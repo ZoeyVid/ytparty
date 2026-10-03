@@ -2,6 +2,7 @@ package de.zoeyvid.ytparty.net;
 
 import de.zoeyvid.ytparty.PlayerController;
 import de.zoeyvid.ytparty.common.Opcodes;
+import de.zoeyvid.ytparty.common.Parts;
 import de.zoeyvid.ytparty.relay.RelayClient;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -14,8 +15,9 @@ import java.io.IOException;
 
 public final class ClientSync {
     private static final PlayerController.Sink SERVER_SINK = data -> {
-        if (ClientPlayNetworking.canSend(SyncPayload.TYPE)) ClientPlayNetworking.send(new SyncPayload(data));
+        if (ClientPlayNetworking.canSend(SyncPayload.TYPE)) for (byte[] part : SyncProtocol.parts(data, 32767)) ClientPlayNetworking.send(new SyncPayload(part));
     };
+    private static final Parts PARTS = new Parts();
 
     private ClientSync() {}
 
@@ -43,6 +45,7 @@ public final class ClientSync {
                 case Opcodes.S2C_STATE -> PlayerController.INSTANCE.applyState(SyncProtocol.readState(d));
                 case Opcodes.S2C_SEEK -> PlayerController.INSTANCE.applyRemoteSeek(d.readLong(), d.readInt());
                 case Opcodes.S2C_LEFT -> PlayerController.INSTANCE.onPartyLeft();
+                case Opcodes.S2C_PART -> { byte[] m = PARTS.add(d); if (m != null && m[0] != Opcodes.S2C_PART) dispatch(m); }
                 case Opcodes.S2C_INVITED -> {
                     String from = d.readUTF();
                     String id = d.readUTF();

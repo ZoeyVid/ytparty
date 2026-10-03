@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public final class Control {
     public enum Emit { STATE, SEEK, NONE }
@@ -15,7 +16,7 @@ public final class Control {
     private static final Result STATE = new Result(Emit.STATE, 0);
     private static final Result NONE = new Result(Emit.NONE, 0);
 
-    public static Result apply(Party p, byte op, DataInputStream d, String requester) throws IOException {
+    public static Result apply(Party p, byte op, DataInputStream d, UUID sender, String requester) throws IOException {
         int oldCur = p.curTrackId();
         int genBefore = p.generation;
         switch (op) {
@@ -61,6 +62,11 @@ public final class Control {
                 } else if (!p.tracks.isEmpty()) p.currentIndex = (p.currentIndex + 1) % p.tracks.size();
                 else p.currentIndex = -1;
             }
+            case Opcodes.C2S_TRACK_FAILED -> {
+                if (d.readInt() != p.generation) return NONE;
+                p.failed.add(sender);
+                return skipFailed(p) ? STATE : NONE;
+            }
             case Opcodes.C2S_SET_PLAYLIST -> {
                 int n = d.readInt();
                 if (n < 0 || n > 500) return NONE;
@@ -95,8 +101,15 @@ public final class Control {
             default -> { return NONE; }
         }
         if (p.curTrackId() != oldCur) p.generation++;
-        if (p.generation != genBefore) p.anchor(0);
+        if (p.generation != genBefore) { p.anchor(0); p.failed.clear(); }
         return STATE;
+    }
+
+    public static boolean skipFailed(Party p) {
+        if (p.currentIndex < 0 || p.members.keySet().stream().anyMatch(u -> p.canManage(u) && !p.failed.contains(u))) return false;
+        if (!p.repeatOne && p.currentIndex < p.tracks.size() - 1) { p.currentIndex++; p.generation++; p.anchor(0); p.failed.clear(); }
+        else if (!p.paused) { p.paused = true; p.pausedSince = System.currentTimeMillis(); }
+        return true;
     }
 
     private static String cap(String s, int max) { return s.length() <= max ? s : s.substring(0, max); }

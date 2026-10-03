@@ -17,7 +17,11 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import com.sedmelluq.discord.lavaplayer.track.InternalAudioTrack;
+import com.sedmelluq.discord.lavaplayer.track.playback.LocalAudioTrackExecutor;
 import com.sedmelluq.discord.lavaplayer.track.playback.MutableAudioFrame;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.ServiceList;
@@ -64,7 +68,7 @@ public final class MusicPlayer {
     private Consumer<String> onError = reason -> {};
     private AudioTrack lastTrack;
     private volatile boolean decodeFinished;
-    private volatile long seekTarget = -1, pendingSeek = -1, seekedAt, timecode;
+    private volatile long seekTarget = -1, pendingSeek = -1, seekedAt, timecode, playedUntil;
     private final AtomicInteger seeks = new AtomicInteger();
 
     private static final AtomicReferenceFieldUpdater<MusicPlayer, String> PLAYING = AtomicReferenceFieldUpdater.newUpdater(MusicPlayer.class, String.class, "playing");
@@ -81,14 +85,15 @@ public final class MusicPlayer {
         manager.getConfiguration().setOutputFormat(FORMAT);
         manager.setFrameBufferDuration(1000);
         manager.setPlayerCleanupThreshold(Long.MAX_VALUE);
+        Configurator.setLevel(LocalAudioTrackExecutor.class, Level.OFF);
         if (!SLIM) manager.registerSourceManager(new HttpAudioSourceManager(new MediaContainerRegistry(MediaContainer.asList().stream().filter(probe -> probe != MediaContainer.OGG.probe && probe != MediaContainer.FLAC.probe).toList())));
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
                 if (reason != AudioTrackEndReason.FINISHED && reason != AudioTrackEndReason.LOAD_FAILED) return;
-                boolean played = ((InternalAudioTrack) t).getActiveExecutor().getAudioBuffer().hasReceivedFrames();
+                boolean played = ((InternalAudioTrack) t).getActiveExecutor().getAudioBuffer().hasReceivedFrames(), early = played && mayRetry && seekTarget < 0 && t.isSeekable() && t.getPosition() < t.getDuration() - 1000;
                 if (!(t instanceof FfmpegAudioTrack) && t.getUserData() instanceof Media media && media.track() != null && (reason == AudioTrackEndReason.LOAD_FAILED || (seekTarget >= 0 ? seekTarget : t.getPosition()) < t.getDuration() - 1000) && !(played && t.getPosition() == seekTarget)) { if (seekTarget < 0) seekedAt = System.nanoTime(); if (played || seekTarget >= 0) pendingSeek = seekTarget >= 0 ? seekTarget : t.getPosition() - out.bufferedAhead(); start(ffmpeg(media), media, null); }
-                else if (reason == AudioTrackEndReason.FINISHED && (played || seekTarget >= 0 && !(t instanceof FfmpegAudioTrack f && f.failed)) && !t.getInfo().isStream) { decodeFinished = true; if (played && seekTarget >= 0 && t.getPosition() == seekTarget) setPosition(seekTarget); }
-                else { if (played) mayRetry = true; failed(playing, t instanceof FfmpegAudioTrack && !Tools.installed("ffmpeg") ? (SLIM ? NEEDS_FFMPEG : (t.getInfo().isStream ? "Livestreams" : "Other sites") + " need ffmpeg installed") : null); }
+                else if (reason == AudioTrackEndReason.FINISHED && (played || seekTarget >= 0 && !(t instanceof FfmpegAudioTrack f && f.failed)) && !t.getInfo().isStream && !early) { decodeFinished = true; if (played && seekTarget >= 0 && t.getPosition() == seekTarget) setPosition(seekTarget); }
+                else { if (played) mayRetry = true; if (early) { seekedAt = playedUntil; pendingSeek = t.getPosition(); } failed(playing, t instanceof FfmpegAudioTrack && !Tools.installed("ffmpeg") ? (SLIM ? NEEDS_FFMPEG : (t.getInfo().isStream ? "Livestreams" : "Other sites") + " need ffmpeg installed") : null); }
             }
         });
         Thread pump = new Thread(this::pumpLoop, "ytparty-audio");
@@ -97,8 +102,12 @@ public final class MusicPlayer {
         pump.start();
     }
 
-    record Media(String identifier, String title, String url, NavigableMap<Integer, Video> videos, AudioTrack track) {}
-    public record Video(String url, int width, int height, String headers, String cookies, boolean hls) {}
+    record Media(String identifier, String title, String url, NavigableMap<Integer, Video> videos, AudioTrack track, String source) {
+        Media(String identifier, String title, String url, NavigableMap<Integer, Video> videos, AudioTrack track) { this(identifier, title, url, videos, track, identifier); }
+    }
+    public record Video(String url, int width, int height, String headers, String cookies, boolean hls, Video fallback) {
+        Video(String url, int width, int height, String headers, String cookies, boolean hls) { this(url, width, height, headers, cookies, hls, null); }
+    }
 
     static final Comparator<Double> FPS = Comparator.comparingDouble((Double fps) -> fps > 0 ? Math.max(fps / 30, 30 / fps) : Double.MAX_VALUE).thenComparing(Comparator.reverseOrder());
 
@@ -114,10 +123,10 @@ public final class MusicPlayer {
         if (!http(identifier)) throw new Unplayable("Only http(s) URLs can be played");
         if (SLIM && !Tools.installed("ffmpeg")) throw new Unplayable(NEEDS_FFMPEG);
         Media cached = RESOLVED.get(identifier);
-        if (cached != null && !blocked(identifier)) return cached;
+        if (cached != null && !blocked(identifier) && !blocked(cached.source())) return cached;
         String ard = ArdMediathek.id(identifier);
         Media media = ard != null ? ArdMediathek.resolve(identifier, ard) : isYoutube(identifier) ? youtube(identifier) : YtDlp.resolve(identifier);
-        if (blocked(media.identifier())) media = new Media(identifier, media.title(), media.url(), media.videos(), media.track());
+        media = new Media(blocked(media.identifier()) ? identifier : media.identifier(), media.title(), media.url(), media.videos(), media.track(), identifier);
         RESOLVED.put(identifier, media);
         if (builtIn(identifier) || !builtIn(media.identifier()) && origin(identifier).equalsIgnoreCase(origin(media.identifier()))) RESOLVED.put(media.identifier(), media);
         return media;
@@ -157,10 +166,10 @@ public final class MusicPlayer {
         if (!Tools.installed("ffmpeg")) throw new Unplayable("Livestreams need ffmpeg installed");
         String url = Utils.isNullOrEmpty(info.getHlsUrl()) ? info.getDashMpdUrl() : info.getHlsUrl();
         if (Utils.isNullOrEmpty(url)) throw new Unplayable("This YouTube livestream has no playable stream");
-        return new Media(identifier, info.getName(), url, YtDlp.hlsVideos(url), new FfmpegAudioTrack(new AudioTrackInfo(info.getName(), "", Units.DURATION_MS_UNKNOWN, url, true, url), "", "", !Utils.isNullOrEmpty(info.getHlsUrl())));
+        return new Media(identifier, info.getName(), url, YtDlp.hlsVideos(url), new FfmpegAudioTrack(new AudioTrackInfo(info.getName(), "", Units.DURATION_MS_UNKNOWN, url, true, url), "", "", !Utils.isNullOrEmpty(info.getHlsUrl()), true));
     }
 
-    static AudioTrack slimTrack(String title, String url, long duration) throws Exception { return SLIM ? new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration > 0 ? duration : YtDlp.duration(YtDlp.probe(url, "", "")), url, false, url), "", "", false) : null; }
+    static AudioTrack slimTrack(String title, String url, long duration) throws Exception { return SLIM ? new FfmpegAudioTrack(new AudioTrackInfo(title, "", duration > 0 ? duration : YtDlp.duration(YtDlp.probe(url, "", "")), url, false, url), "", "", false, false) : null; }
 
     private static void forget(String identifier) { RESOLVED.remove(identifier); }
 
@@ -198,7 +207,7 @@ public final class MusicPlayer {
         String identifier = playing;
         AudioTrack last = lastTrack;
         try {
-            if (identifier != null && blocked(identifier) || last != null && blocked(((Media) last.getUserData()).identifier())) {
+            if (identifier != null && blocked(identifier) || last != null && last.getUserData() instanceof Media media && (blocked(media.identifier()) || blocked(media.source()))) {
                 lastTrack = null;
                 if (identifier != null) { if (loading != null) loading.cancel(true); failed(identifier, BLOCKED); }
             }
@@ -257,6 +266,7 @@ public final class MusicPlayer {
 
     private void begin(AudioTrack track) {
         decodeFinished = false;
+        playedUntil = System.nanoTime();
         seekTarget = -1;
         out.requestFlush();
         player.playTrack(track);
@@ -326,7 +336,7 @@ public final class MusicPlayer {
                 boolean stale = has && target >= 0 && Math.abs(tc - target) > 60 && (tc < target || tc > target + 5000 || Math.abs(tc - timecode - FORMAT.frameDuration()) <= 1);
                 if (has) timecode = tc;
                 if (has && seekTarget >= 0 && !stale) seekTarget = -1;
-                if (has && !stale) out.write(buf, frame.getDataLength());
+                if (has && !stale) { out.write(buf, frame.getDataLength()); if (out.bufferedAhead() > 200) playedUntil = System.nanoTime() + out.bufferedAhead() * 1_000_000L; }
                 if (decodeFinished && out.bufferedAhead() == 0) { decodeFinished = false; onEnd.run(); }
                 if (!has) sleep();
             } catch (Exception ignored) { sleep(); }

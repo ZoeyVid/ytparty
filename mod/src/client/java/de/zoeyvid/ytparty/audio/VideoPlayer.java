@@ -18,7 +18,7 @@ public final class VideoPlayer {
     private final LongSupplier position;
     private final Runnable onFailure;
     private volatile Session session;
-    private String failedUrl;
+    private String failedUrl, broken;
 
     public VideoPlayer(LongSupplier position, Runnable onFailure) {
         this.position = position;
@@ -26,11 +26,13 @@ public final class VideoPlayer {
         Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
     }
 
-    public void frame(String url, String headers, String cookies, boolean hls, boolean live, int seeks, int width, int height, Sink sink) throws IOException {
-        if (session != null && session.failed && !session.url.equals(failedUrl)) { failedUrl = session.url; onFailure.run(); }
+    public void frame(MusicPlayer.Video video, boolean live, int seeks, int width, int height, Sink sink) throws IOException {
+        if (session != null && session.failed && !session.url.equals(failedUrl)) { failedUrl = session.url; if (video != null && video.fallback() != null && video.url().equals(failedUrl)) broken = failedUrl; else onFailure.run(); }
+        if (video != null && video.url().equals(broken)) video = video.fallback();
+        String url = video == null ? null : video.url();
         long restart = session != null && session.url.equals(url) && session.seeks == seeks ? session.restart : 0;
         if (session != null && (restart > 0 || session.closed || session.failed && System.nanoTime() - session.started > 5_000_000_000L || !session.url.equals(url) || session.seeks != seeks || (session.width != width || session.height != height) && System.nanoTime() - session.started > 500_000_000L)) stop();
-        if (session == null && url != null) session = new Session(url, headers, cookies, hls, live, seeks, width, height, position.getAsLong() + restart, restart);
+        if (session == null && url != null) session = new Session(url, video.headers(), video.cookies(), video.hls(), live, seeks, width, height, position.getAsLong() + restart, restart);
         if (session == null) return;
         session.polled = System.nanoTime();
         byte[] pixels = session.latest.getAndSet(null);
@@ -79,16 +81,18 @@ public final class VideoPlayer {
         public void run() {
             try (InputStream in = process.getInputStream()) {
                 boolean shown = false;
-                long latency = 0, first = 0;
+                long latency = 0, first = 0, from = 0;
                 for (long n = 0; ; n++) {
                     byte[] pixels = Objects.requireNonNullElseGet(free.poll(), () -> new byte[width * height * 4]);
                     if (in.readNBytes(pixels, 0, pixels.length) < pixels.length) break;
-                    if (n == 0) { latency = (System.nanoTime() - started) / 1_000_000; first = position.getAsLong(); }
-                    while (!closed && System.nanoTime() - polled <= 1_000_000_000L && position.getAsLong() < start + n * 1000 / FPS) Thread.sleep(10);
+                    if (n == 0) latency = (System.nanoTime() - started) / 1_000_000;
+                    while (!closed && System.nanoTime() - polled <= 1_000_000_000L && position.getAsLong() < start + n * 1000 / FPS) if (!shown && position.getAsLong() + 500 < start - ahead + (System.nanoTime() - started) / 1_000_000) closed = true; else Thread.sleep(10);
                     if (closed || System.nanoTime() - polled > 1_000_000_000L) { closed = true; process.destroyForcibly(); return; }
                     long late = position.getAsLong() - start - (n + 1) * 1000 / FPS;
-                    if (!shown && late > 0) {
-                        long dropping = position.getAsLong() - first, gained = n * 1000 / FPS - dropping, lead = Math.min(latency + 500, 10_000);
+                    if (late <= 0) from = n + 1;
+                    else if (!shown || !live) {
+                        if (n == from) first = position.getAsLong();
+                        long dropping = position.getAsLong() - first, gained = (n - from) * 1000 / FPS - dropping, lead = Math.min(latency + 500, 10_000);
                         if (dropping < Math.max(1000, ahead) || late * dropping <= lead * gained || lead <= ahead && gained > 0) { free.offer(pixels); continue; }
                         if (lead > ahead && !live) { restart = lead; process.destroyForcibly(); return; }
                     }

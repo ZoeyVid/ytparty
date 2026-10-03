@@ -2,6 +2,7 @@ package de.zoeyvid.ytparty.server.net;
 
 import de.zoeyvid.ytparty.common.Control;
 import de.zoeyvid.ytparty.common.Opcodes;
+import de.zoeyvid.ytparty.common.Parts;
 import de.zoeyvid.ytparty.net.SyncPayload;
 import de.zoeyvid.ytparty.server.party.Party;
 import de.zoeyvid.ytparty.server.party.PartyManager;
@@ -23,6 +24,7 @@ public final class ServerSync {
     private static final double MSG_BURST = 16, MSG_RATE = 4;
     private final PartyManager manager = new PartyManager();
     private final Map<UUID, Bucket> buckets = new HashMap<>();
+    private final Map<UUID, Parts> parts = new HashMap<>();
     private MinecraftServer server;
 
     private static final class Bucket {
@@ -52,7 +54,7 @@ public final class ServerSync {
         b.tokens--;
         return true;
     }
-    private void forget(UUID u) { buckets.remove(u); }
+    private void forget(UUID u) { buckets.remove(u); parts.remove(u); }
 
     public void broadcast(Party party) {
         ServerProtocol.StateTemplate t = ServerProtocol.stateTemplate(party, this::nameOf);
@@ -68,7 +70,7 @@ public final class ServerSync {
     public void afterLeave(PartyManager.LeaveResult r) {
         if (r == null) return;
         if (r.disbanded()) { for (UUID m : r.party().members.keySet()) { ServerPlayer p = online(m); if (p != null) send(p, ServerProtocol.left()); } }
-        else broadcast(r.party());
+        else { Control.skipFailed(r.party()); broadcast(r.party()); }
     }
 
     public void create(ServerPlayer player) {
@@ -110,10 +112,11 @@ public final class ServerSync {
 
     public void onReceive(ServerPlayer player, byte[] message) {
         if (message.length == 0) return;
-        if (!allow(player.getUUID())) return;
+        if (message[0] != Opcodes.C2S_PART && !allow(player.getUUID())) return;
         try (DataInputStream d = new DataInputStream(new ByteArrayInputStream(message))) {
             byte op = d.readByte();
             switch (op) {
+                case Opcodes.C2S_PART -> { byte[] m = parts.computeIfAbsent(player.getUUID(), u -> new Parts()).add(d); if (m != null && m[0] != Opcodes.C2S_PART) onReceive(player, m); }
                 case Opcodes.C2S_CREATE -> create(player);
                 case Opcodes.C2S_JOIN -> join(player, d.readUTF());
                 case Opcodes.C2S_LEAVE -> leave(player, d.available() > 0 ? d.readUTF() : "");
@@ -156,7 +159,7 @@ public final class ServerSync {
         Party p = manager.of(player.getUUID());
         if (p == null) return;
         if (!p.canManage(player.getUUID())) { send(player, ServerProtocol.state(p, player.getUUID(), this::nameOf)); return; }
-        Control.Result r = Control.apply(p, op, d, player.getName().getString());
+        Control.Result r = Control.apply(p, op, d, player.getUUID(), player.getName().getString());
         switch (r.emit()) {
             case STATE -> broadcast(p);
             case SEEK -> { for (UUID m : p.members.keySet()) { ServerPlayer pl = online(m); if (pl != null) send(pl, ServerProtocol.seek(r.seekMs(), p.generation)); } }
