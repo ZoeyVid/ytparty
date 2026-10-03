@@ -9,8 +9,8 @@ One binary, length‑prefixed channel named **`ytparty:sync`**.
 
 - **On a Minecraft server** (server mod / plugin) it rides Minecraft's plugin‑messaging — carried
   inside the player's game connection.
-- **To a relay** it's a plain TCP connection carrying the same frames, AEAD‑encrypted after the
-  handshake (see [`SECURITY.md`](SECURITY.md)).
+- **To a relay** it's a plain TCP connection carrying the same frames, AEAD‑encrypted and padded after
+  the handshake (see [`SECURITY.md`](SECURITY.md)).
 
 Each frame is **one opcode byte** followed by its payload.
 
@@ -18,7 +18,8 @@ A frame too big for one message travels as `PART` frames (`i32 offset, i32 total
 of the whole frame); the receiver handles the reassembled frame like any other. Only frames that don't
 fit are split, so a side that doesn't know `PART` gets the same frames as before: the client splits
 frames over 32767 bytes for a Minecraft server (Bukkit's limit for serverbound plugin messages), the
-client and the relay split frames over the relay's 1 MiB frame limit, and the plugin splits a frame only
+client and the relay split frames that don't fit into one relay frame (1 MiB minus the 16‑byte tag and
+the 1‑byte padding marker), and the plugin splits a frame only
 when the server refuses to send it in one piece (Bukkit before 1.21 caps plugin messages at 32766 bytes).
 A receiver drops a sequence with a gap or a frame over 2 MiB; the Minecraft backends charge their rate
 limit for the reassembled frame, the relay for every frame.
@@ -28,6 +29,13 @@ limit for the reassembled frame, the relay for every frame.
 Fields use Java `DataOutputStream` conventions: `str` = 2‑byte length ＋ modified‑UTF‑8; `i32` /
 `i64` = 4‑ / 8‑byte big‑endian; `u8` = one byte; `bool` = one byte (0/1). Opcode numbers are the
 single source of truth in `common/Opcodes.java`.
+
+## Field limits
+
+The relay rejects a frame whose field is longer than its limit: `name` 16 bytes, party `id` 8 bytes.
+At login it also checks the name against Vanilla's rule (1–16 printable ASCII characters, no space),
+the UUID against its 36‑character form and the token against 24 bytes, and answers anything else with
+a rejection. A `uri` over 1000 bytes is ignored, a `title` is cut to 200 characters.
 
 ## Permission levels
 

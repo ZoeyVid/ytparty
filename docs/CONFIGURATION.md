@@ -6,12 +6,12 @@ The only configurable component. All via environment variables:
 
 | Variable | Required | Default | Meaning |
 |---|---|---|---|
-| `YTPARTY_RELAY_PASSWORD` | **yes** | — | shared password; clients must match it. Printable ASCII only. The relay refuses to start without it and prints an example key. |
+| `YTPARTY_RELAY_PRIVATE_KEY` | **yes** | — | the relay's X25519 private key, base64url. The relay refuses to start without a valid one and prints an example key. It logs the matching public key at every start; clients enter that public key as their password. |
 | `YTPARTY_RELAY_HOST` | no | `0.0.0.0` | listen address |
 | `YTPARTY_RELAY_PORT` | no | `25599` | listen port |
 
-Set the password in `compose.yaml`'s `environment:` section — the shipped file has an empty
-`YTPARTY_RELAY_PASSWORD:` ready to fill in.
+Set the private key in `compose.yaml`'s `environment:` section — the shipped file has an empty
+`YTPARTY_RELAY_PRIVATE_KEY:` ready to fill in.
 
 ## Server mod / plugin
 
@@ -20,8 +20,8 @@ managers change both per party in‑game.
 
 ## Client
 
-Nothing to edit by hand. The in‑game screens save automatically: the relay connection (host, port,
-password, remember‑password, autoconnect), volume, the Now‑Playing HUD, the picture‑in‑picture video
+Nothing to edit by hand. The in‑game screens save automatically (owner‑only where the file system
+supports it): the relay connection (host, port, password, remember‑password, autoconnect), volume, the Now‑Playing HUD, the picture‑in‑picture video
 (on/off, size, position), SponsorBlock categories, and the repeat / auto‑remove toggles all persist
 between sessions; the *Allowed sites* list persists too, but is only saved by its *Done* button
 (*Cancel* or Esc discard your changes). Solo playlists are not persisted (party playlists live on the

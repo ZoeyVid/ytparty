@@ -31,7 +31,7 @@ logic, so the experience is identical whichever you use.
 A party lives entirely inside **one** backend; the relay and a server plugin/mod never bridge. So two
 people share a party only if they share a backend. The relay is independent of Minecraft — it works
 from singleplayer or from any server, as long as both connect to the **same** relay (same host / port /
-password). A **singleplayer** world is private to you (a party of one). Local playback always works
+key). A **singleplayer** world is private to you (a party of one). Local playback always works
 everywhere; only the *sync* needs a backend.
 
 | Person A ↓ \\ B → | Singleplayer (no relay) | Server X (plugin/mod) | Server Y (plugin/mod) | Server without backend | On the same relay |
@@ -69,7 +69,8 @@ relay; each one's server backend is simply ignored while the relay is connected.
    also on a dropout unless its server sends it chunked (as some radios without Icecast headers do).
    A livestream's video that starts later (turned on or resized mid‑stream) can be a few seconds off.
 2. **To sync with others**, either:
-   - **Relay:** enter host / port / password in the in‑game *Relay* screen and connect. Run your own
+   - **Relay:** enter host / port and, as the password, the relay's public key (from its log) in the
+     in‑game *Relay* screen and connect. Run your own
      with Docker (`relay/compose.yaml` + `relay/Dockerfile`, image `ghcr.io/zoeyvid/ytparty`) — see
      [`relay/README.md`](relay/README.md).
    - **Server backend:** join a Fabric server with the server mod, or a Bukkit server with the plugin.

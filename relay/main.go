@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/ecdh"
+	"crypto/rand"
+	"encoding/base64"
 	"log"
 	"log/slog"
 	"net"
@@ -20,21 +23,25 @@ func env(k, def string) string {
 }
 
 func main() {
-	pw := os.Getenv("YTPARTY_RELAY_PASSWORD")
-	if pw == "" {
-		log.Print("FATAL: YTPARTY_RELAY_PASSWORD is required and was not set.")
-		log.Printf("       for example: YTPARTY_RELAY_PASSWORD=%s", genSecret(24))
-		log.Fatal("       set YTPARTY_RELAY_PASSWORD (printable ASCII) and start again")
+	var priv *ecdh.PrivateKey
+	seed, err := base64.RawURLEncoding.DecodeString(os.Getenv("YTPARTY_RELAY_PRIVATE_KEY"))
+	if err == nil {
+		priv, err = ecdh.X25519().NewPrivateKey(seed)
 	}
-	for _, ch := range []byte(pw) {
-		if ch < 0x20 || ch > 0x7e {
-			log.Fatal("FATAL: YTPARTY_RELAY_PASSWORD must be printable ASCII only")
+	if err != nil {
+		example, err := ecdh.X25519().GenerateKey(rand.Reader)
+		if err != nil {
+			log.Fatal(err)
 		}
+		log.Print("FATAL: YTPARTY_RELAY_PRIVATE_KEY is required and must be a base64url X25519 private key.")
+		log.Printf("       for example: YTPARTY_RELAY_PRIVATE_KEY=%s", base64.RawURLEncoding.EncodeToString(example.Bytes()))
+		log.Fatal("       set YTPARTY_RELAY_PRIVATE_KEY and start again")
 	}
 	host := env("YTPARTY_RELAY_HOST", "0.0.0.0")
 	port := env("YTPARTY_RELAY_PORT", "25599")
 	r := &relay{
-		key:           deriveKey(pw),
+		priv:          priv,
+		pub:           priv.PublicKey().Bytes(),
 		byID:          map[string]*party{},
 		playerToParty: map[string]string{},
 		conns:         map[string]*conn{},
@@ -48,6 +55,7 @@ func main() {
 		log.Fatal(err)
 	}
 	slog.Info("listening", "host", host, "port", port)
+	slog.Info("public key for clients", "key", base64.RawURLEncoding.EncodeToString(r.pub))
 	go r.sweepTokens(ctx)
 	go func() { <-ctx.Done(); ln.Close() }()
 	var wg sync.WaitGroup

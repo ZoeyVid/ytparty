@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/ecdh"
 	"crypto/rand"
 	"log"
 	"log/slog"
@@ -10,7 +11,8 @@ import (
 
 type relay struct {
 	mu            sync.Mutex
-	key           []byte
+	priv          *ecdh.PrivateKey
+	pub           []byte
 	byID          map[string]*party
 	playerToParty map[string]string
 	conns         map[string]*conn
@@ -134,9 +136,9 @@ func (r *relay) send(tok string, payload []byte) {
 		return
 	}
 	frames := [][]byte{payload}
-	if len(payload) > 1<<20-16 {
+	if len(payload) > maxData {
 		frames = nil
-		for off, n := 0, 1<<20-16-9; off < len(payload); off += n {
+		for off, n := 0, maxData-9; off < len(payload); off += n {
 			w := &wtr{}
 			w.u8(sPart)
 			w.i32(off)

@@ -6,22 +6,22 @@ image (`zoeyvid/ytparty`, `ghcr.io/zoeyvid/ytparty`).
 
 ## Run
 
-Use the shipped `compose.yaml` from the relay folder: set `YTPARTY_RELAY_PASSWORD` in its
+Use the shipped `compose.yaml` from the relay folder: set `YTPARTY_RELAY_PRIVATE_KEY` in its
 `environment:` section, then start it with:
 
 ```
 docker compose up -d
 ```
 
-It listens on **25599/tcp** by default (`image: zoeyvid/ytparty`, or `ghcr.io/zoeyvid/ytparty`). Clients enter the host, port and the same password in the
+It listens on **25599/tcp** by default (`image: zoeyvid/ytparty`, or `ghcr.io/zoeyvid/ytparty`). Clients enter the host, port and, as the password, the public key the relay logs at every start in the
 in‑game *Relay* screen.
 
 ## Configuration
 
-`YTPARTY_RELAY_PASSWORD` (required, printable ASCII), `YTPARTY_RELAY_HOST` (default `0.0.0.0`),
+`YTPARTY_RELAY_PRIVATE_KEY` (required, base64url X25519 private key), `YTPARTY_RELAY_HOST` (default `0.0.0.0`),
 `YTPARTY_RELAY_PORT` (default `25599`). See [`../docs/CONFIGURATION.md`](../docs/CONFIGURATION.md).
 
 ## Security
 
-Password‑authenticated hybrid (X25519 ＋ ML‑KEM) forward‑secret handshake, AES‑256‑GCM traffic,
+Static‑key hybrid (X25519 ＋ ML‑KEM, Noise NK‑style) forward‑secret handshake, padded AES‑256‑GCM traffic,
 per‑IP rate limiting. See [`../docs/SECURITY.md`](../docs/SECURITY.md).

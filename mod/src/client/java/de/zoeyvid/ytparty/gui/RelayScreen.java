@@ -44,7 +44,7 @@ public final class RelayScreen extends Screen {
         passField.setMaxLength(255);
         passField.setValue(RelayClient.password);
         passField.addFormatter((s, idx) -> net.minecraft.util.FormattedCharSequence.forward("\u2022".repeat(s.length()), net.minecraft.network.chat.Style.EMPTY));
-        passField.setTooltip(Tooltip.create(Component.literal("The relay password, set by whoever runs the relay")));
+        passField.setTooltip(Tooltip.create(Component.literal("The relay's public key, shown in the relay's log")));
         addRenderableWidget(passField);
 
         addRenderableWidget(Button.builder(Component.literal("Remember password: " + (RelayClient.rememberPassword ? "ON" : "OFF")), b -> {

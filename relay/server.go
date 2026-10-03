@@ -8,6 +8,8 @@ import (
 	"crypto/rand"
 	"log/slog"
 	"net"
+	"net/netip"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -25,15 +27,16 @@ const (
 )
 
 type conn struct {
-	tok  string
-	uuid string
-	name string
-	aead cipher.AEAD
-	c    net.Conn
-	out  chan []byte
-	quit chan struct{}
-	once sync.Once
-	part []byte
+	tok       string
+	uuid      string
+	name      string
+	aead      cipher.AEAD
+	c         net.Conn
+	out       chan []byte
+	quit      chan struct{}
+	once      sync.Once
+	part      []byte
+	partTotal int
 }
 
 func (cc *conn) stop() {
@@ -52,11 +55,11 @@ type ipState struct {
 }
 
 func (r *relay) writer(cc *conn) {
-	var ctr uint64
+	ctr := uint64(1)
 	for {
 		select {
 		case pt := <-cc.out:
-			ct := cc.aead.Seal(nil, nonce(1, ctr), pt, nil)
+			ct := cc.aead.Seal(nil, nonce(1, ctr), pad(pt), nil)
 			ctr++
 			if writeFrame(cc.c, ct) != nil {
 				cc.stop()
@@ -67,15 +70,23 @@ func (r *relay) writer(cc *conn) {
 		}
 	}
 }
+func ipKey(ip string) string {
+	if a, err := netip.ParseAddr(ip); err == nil && a.Is6() && !a.Is4In6() {
+		p, _ := a.Prefix(48)
+		return p.String()
+	}
+	return ip
+}
 func (r *relay) admit(c net.Conn) (string, bool) {
 	ip, _, _ := net.SplitHostPort(c.RemoteAddr().String())
+	key := ipKey(ip)
 	now := time.Now()
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	st := r.perIP[ip]
+	st := r.perIP[key]
 	if st == nil {
 		st = &ipState{bucket: ipBurst, last: now}
-		r.perIP[ip] = st
+		r.perIP[key] = st
 	}
 	st.bucket = min(float64(ipBurst), st.bucket+now.Sub(st.last).Seconds()*ipRefill)
 	st.last = now
@@ -92,10 +103,11 @@ func (r *relay) release(ip string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.activeConns--
-	if st := r.perIP[ip]; st != nil {
+	key := ipKey(ip)
+	if st := r.perIP[key]; st != nil {
 		st.conns--
 		if st.conns <= 0 && st.bucket >= ipBurst {
-			delete(r.perIP, ip)
+			delete(r.perIP, key)
 		}
 	}
 }
@@ -113,8 +125,8 @@ func (r *relay) handle(c net.Conn) {
 	}
 	defer r.release(ip)
 
-	c.SetReadDeadline(time.Now().Add(10 * time.Second))
-	msg1, err := readFrame(c)
+	c.SetReadDeadline(time.Now().Add(5 * time.Second))
+	msg1, err := readFrame(c, 16+32+1184)
 	if err != nil || len(msg1) != 16+32+1184 {
 		return
 	}
@@ -130,7 +142,11 @@ func (r *relay) handle(c net.Conn) {
 	if err != nil {
 		return
 	}
-	ssx, err := xs.ECDH(xcPub)
+	ee, err := xs.ECDH(xcPub)
+	if err != nil {
+		return
+	}
+	es, err := r.priv.ECDH(xcPub)
 	if err != nil {
 		return
 	}
@@ -140,28 +156,35 @@ func (r *relay) handle(c net.Conn) {
 		return
 	}
 	msg2 := append(append(append(make([]byte, 0, 16+32+len(ct)), sn...), xs.PublicKey().Bytes()...), ct...)
-	if err := writeFrame(c, msg2); err != nil {
-		return
-	}
-	g, err := gcm(deriveSession(r.key, msg1, msg2, ssx, ssm))
+	access := mac(r.pub, []byte("ytparty-access-v3"), msg1, msg2, ee, ssm)
+	ga, err := gcm(access)
 	if err != nil {
 		return
 	}
-	encID, err := readFrame(c)
+	g, err := gcm(mac(access, []byte("ytparty-sk-v3"), es))
 	if err != nil {
 		return
 	}
-	id, err := g.Open(nil, nonce(0, 0), encID, nil)
-	if err != nil {
+	if err := writeFrame(c, g.Seal(ga.Seal(msg2, nonce(1, 0), nil, nil), nonce(1, 0), nil, nil)); err != nil {
+		return
+	}
+	encID, err := readFrame(c, 256+16)
+	if err == nil {
+		encID, err = g.Open(nil, nonce(0, 0), encID, nil)
+	}
+	id, ok := unpad(encID)
+	if err != nil || !ok {
 		slog.Warn("auth failed", "ip", ip)
 		return
 	}
 	c.SetReadDeadline(time.Time{})
 	rd := &rdr{b: id}
-	name := string(rd.blob())
-	uuid := string(rd.blob())
-	token := string(rd.blob())
-	if rd.bad || name == "" || uuid == "" {
+	name := rd.str(16)
+	uuid := rd.str(36)
+	token := rd.str(24)
+	if rd.bad || !regexp.MustCompile("^[!-~]+$").MatchString(name) || !regexp.MustCompile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").MatchString(uuid) {
+		slog.Warn("invalid identity", "ip", ip)
+		writeFrame(c, g.Seal(nil, nonce(1, 1), pad([]byte{0}), nil))
 		return
 	}
 
@@ -200,7 +223,7 @@ func (r *relay) handle(c net.Conn) {
 	last := time.Now()
 	var recvCtr uint64 = 1
 	for {
-		fr, err := readFrame(c)
+		fr, err := readFrame(c, maxFrame)
 		if err != nil {
 			break
 		}
@@ -213,12 +236,13 @@ func (r *relay) handle(c net.Conn) {
 		}
 		bucket--
 		pt, err := g.Open(nil, nonce(0, recvCtr), fr, nil)
-		if err != nil {
+		data, ok := unpad(pt)
+		if err != nil || !ok {
 			break
 		}
 		recvCtr++
 		r.mu.Lock()
-		r.onReceive(cc, pt)
+		r.onReceive(cc, data)
 		r.mu.Unlock()
 	}
 	cc.stop()

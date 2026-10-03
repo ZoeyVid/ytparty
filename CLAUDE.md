@@ -75,10 +75,14 @@ guard on messaging).
 
 ## Crypto (relay only)
 
-PSK‑authenticated hybrid handshake: PBKDF2‑HMAC‑SHA256 over the shared password, mixed with an X25519
-**and** an ML‑KEM (post‑quantum) exchange via HMAC‑SHA256 into a session key; traffic is AES‑256‑GCM
-with directional, counter‑based nonces. Forward‑secret and replay‑safe. The Java and Go sides are
-byte‑compatible. Details in [`docs/SECURITY.md`](docs/SECURITY.md).
+Static‑key hybrid handshake in the Noise NK pattern: clients enter the relay's X25519 **public** key (its
+private key stays on the relay), and an ephemeral X25519 **and** an ML‑KEM (post‑quantum) exchange are
+mixed via HMAC‑SHA256 into an access key (keyed with the public key) and a session key (adds the
+client‑ephemeral × relay‑static X25519, so only the real relay gets it). Two confirmations let the
+client tell a wrong key from a fake relay before it sends anything. Traffic is AES‑256‑GCM with
+directional, counter‑based nonces, every frame padded to a power of two (≥ 256 bytes). Forward‑secret
+and replay‑safe. The Java and Go sides are byte‑compatible. Details in
+[`docs/SECURITY.md`](docs/SECURITY.md).
 
 ## Building
 

@@ -157,13 +157,13 @@ func (r *relay) onReceive(c *conn, payload []byte) {
 		slog.Info("party created", "id", p.id, "by", c.name)
 		r.broadcast(p)
 	case cJoin:
-		pid := string(rd.blob())
+		pid := rd.str(8)
 		if rd.bad {
 			return
 		}
 		r.doJoin(tok, pid)
 	case cLeave:
-		name := string(rd.blob())
+		name := rd.str(16)
 		if name != "" {
 			p := r.of(tok)
 			if p != nil && p.level(tok) == manage {
@@ -186,14 +186,14 @@ func (r *relay) onReceive(c *conn, payload []byte) {
 		r.send(tok, w.b)
 		r.afterLeave(res)
 	case cInvite:
-		name := string(rd.blob())
+		name := rd.str(16)
 		level := rd.u8()
 		if rd.bad {
 			return
 		}
 		r.doInvite(tok, name, lvl(level))
 	case cSetLevel:
-		name := string(rd.blob())
+		name := rd.str(16)
 		level := rd.u8()
 		if rd.bad {
 			return
@@ -213,12 +213,12 @@ func (r *relay) onReceive(c *conn, payload []byte) {
 	case cPart:
 		off, total := rd.i32(), rd.i32()
 		if off == 0 {
-			c.part = nil
+			c.part, c.partTotal = nil, 0
 			if total > 0 && total <= 1<<21 {
-				c.part = make([]byte, 0, total)
+				c.part, c.partTotal = []byte{}, total
 			}
 		}
-		if rd.bad || c.part == nil || off != len(c.part) || total != cap(c.part) || len(rd.b)-rd.i > total-off {
+		if rd.bad || c.part == nil || off != len(c.part) || total != c.partTotal || len(rd.b)-rd.i > total-off {
 			c.part = nil
 			return
 		}

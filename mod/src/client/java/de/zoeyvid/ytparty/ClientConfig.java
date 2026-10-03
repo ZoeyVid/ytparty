@@ -10,7 +10,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Properties;
+import java.util.Set;
 
 public final class ClientConfig {
     private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("ytparty-client.properties");
@@ -84,7 +87,14 @@ public final class ClientConfig {
         p.setProperty("video.size", Integer.toString(videoSize));
         p.setProperty("video.position", Integer.toString(videoPosition));
         p.setProperty("allowed-sites", String.join("\n", MusicPlayer.allowedSites()));
-        try (OutputStream out = Files.newOutputStream(PATH)) { p.store(out, "YT Party client config"); } catch (IOException ignored) {}
+        try {
+            if (PATH.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+                Set<PosixFilePermission> ownerOnly = PosixFilePermissions.fromString("rw-------");
+                if (Files.exists(PATH)) Files.setPosixFilePermissions(PATH, ownerOnly);
+                else Files.createFile(PATH, PosixFilePermissions.asFileAttribute(ownerOnly));
+            }
+            try (OutputStream out = Files.newOutputStream(PATH)) { p.store(out, "YT Party client config"); }
+        } catch (IOException ignored) {}
     }
 
     private static int parseInt(String s, int def) { try { return Integer.parseInt(s.trim()); } catch (RuntimeException e) { return def; } }

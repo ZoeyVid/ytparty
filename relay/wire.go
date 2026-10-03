@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	maxFrame = 1 << 20
+	maxData  = maxFrame - 16 - 1
+)
+
 type rdr struct {
 	b   []byte
 	i   int
@@ -59,6 +64,13 @@ func (r *rdr) blob() []byte {
 	r.i += n
 	return slices.Clone(v)
 }
+func (r *rdr) str(max int) string {
+	b := r.blob()
+	if len(b) > max {
+		r.bad = true
+	}
+	return string(b)
+}
 
 type wtr struct{ b []byte }
 
@@ -108,13 +120,13 @@ func writeFrame(c net.Conn, b []byte) error {
 	_, err := c.Write(buf)
 	return err
 }
-func readFrame(c net.Conn) ([]byte, error) {
+func readFrame(c net.Conn, max int) ([]byte, error) {
 	var h [4]byte
 	if _, err := io.ReadFull(c, h[:]); err != nil {
 		return nil, err
 	}
 	n := binary.BigEndian.Uint32(h[:])
-	if n > 1<<20 {
+	if n > uint32(max) {
 		return nil, io.ErrShortBuffer
 	}
 	b := make([]byte, n)

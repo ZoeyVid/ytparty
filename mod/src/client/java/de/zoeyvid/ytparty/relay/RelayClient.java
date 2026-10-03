@@ -47,20 +47,16 @@ public final class RelayClient {
     public String message() { return message; }
     public boolean connected() { return status == Status.CONNECTED; }
 
-    public static boolean isAscii(String s) {
-        for (int i = 0; i < s.length(); i++) { char ch = s.charAt(i); if (ch < 0x20 || ch > 0x7e) return false; }
-        return true;
-    }
-
     public void connect(String h, int p, String pass) {
         if (status == Status.CONNECTING || status == Status.CONNECTED) return;
-        if (!isAscii(pass)) { fail("Password: ASCII only"); return; }
+        byte[] key = RelayCrypto.parseKey(pass);
+        if (key == null) { fail("Password: invalid key"); return; }
         host = h; port = String.valueOf(p); password = pass;
         ClientConfig.save();
         status = Status.CONNECTING;
         message = "connecting\u2026";
         int gen = generation.incrementAndGet();
-        Thread t = new Thread(() -> run(gen, h, p, pass), "ytparty-relay-reader");
+        Thread t = new Thread(() -> run(gen, h, p, key), "ytparty-relay-reader");
         t.setDaemon(true);
         t.start();
     }
@@ -68,12 +64,12 @@ public final class RelayClient {
     public void send(byte[] data) {
         BlockingQueue<byte[]> q = sendQueue;
         if (q == null) return;
-        for (byte[] part : SyncProtocol.parts(data, (1 << 20) - 16)) if (!q.offer(part)) { cleanup("send buffer full"); return; }
+        for (byte[] part : SyncProtocol.parts(data, RelayCrypto.MAX_DATA)) if (!q.offer(part)) { cleanup("send buffer full"); return; }
     }
 
     public void disconnect() { cleanup("disconnected"); }
 
-    private void run(int gen, String h, int p, String pass) {
+    private void run(int gen, String h, int p, byte[] key) {
         Socket s = new Socket();
         try {
             s.connect(new InetSocketAddress(h, p), 8000);
@@ -93,22 +89,28 @@ public final class RelayClient {
             byte[] msg1 = m1.toByteArray();
             writeFrame(os, msg1);
 
-            byte[] msg2 = readFrame(in);
-            if (msg2.length != 16 + 32 + 1088) { fail("Relay: invalid handshake"); s.close(); return; }
-            byte[] ssx = RelayCrypto.x25519Agree(xc.getPrivate(), Arrays.copyOfRange(msg2, 16, 48));
-            byte[] ssm = RelayCrypto.mlkemDecapsulate(mk.getPrivate(), Arrays.copyOfRange(msg2, 48, msg2.length));
-            byte[] session = RelayCrypto.deriveSession(RelayCrypto.deriveKey(pass), msg1, msg2, ssx, ssm);
+            byte[] msg2 = readFrame(in, 16 + 32 + 1088 + 16 + 16);
+            if (msg2.length != 16 + 32 + 1088 + 16 + 16) { fail("Relay: invalid handshake"); s.close(); return; }
+            byte[] core = Arrays.copyOf(msg2, 16 + 32 + 1088);
+            byte[] ee = RelayCrypto.x25519Agree(xc.getPrivate(), Arrays.copyOfRange(msg2, 16, 48));
+            byte[] ssm = RelayCrypto.mlkemDecapsulate(mk.getPrivate(), Arrays.copyOfRange(msg2, 48, core.length));
+            byte[] access = RelayCrypto.hmac(key, "ytparty-access-v3".getBytes(StandardCharsets.UTF_8), msg1, core, ee, ssm);
+            byte[] session = RelayCrypto.hmac(access, "ytparty-sk-v3".getBytes(StandardCharsets.UTF_8), RelayCrypto.x25519Agree(xc.getPrivate(), key));
+            try { RelayCrypto.decrypt(access, RelayCrypto.nonce(1, 0), Arrays.copyOfRange(msg2, core.length, core.length + 16)); }
+            catch (GeneralSecurityException e) { fail("Relay: wrong password"); s.close(); return; }
+            try { RelayCrypto.decrypt(session, RelayCrypto.nonce(1, 0), Arrays.copyOfRange(msg2, core.length + 16, msg2.length)); }
+            catch (GeneralSecurityException e) { fail("Relay: not the real relay"); s.close(); return; }
 
             ByteArrayOutputStream idb = new ByteArrayOutputStream();
             DataOutputStream id = new DataOutputStream(idb);
             writeBlob(id, Minecraft.getInstance().getUser().getName().getBytes(StandardCharsets.UTF_8));
             writeBlob(id, Minecraft.getInstance().getUser().getProfileId().toString().getBytes(StandardCharsets.UTF_8));
             writeBlob(id, token.getBytes(StandardCharsets.UTF_8));
-            writeFrame(os, RelayCrypto.encrypt(session, RelayCrypto.nonce(0, 0), idb.toByteArray()));
+            writeFrame(os, RelayCrypto.encrypt(session, RelayCrypto.nonce(0, 0), RelayCrypto.pad(idb.toByteArray())));
 
             byte[] ack;
-            try { ack = RelayCrypto.decrypt(session, RelayCrypto.nonce(1, 0), readFrame(in)); }
-            catch (GeneralSecurityException e) { fail("Relay: wrong password"); s.close(); return; }
+            try { ack = RelayCrypto.unpad(RelayCrypto.decrypt(session, RelayCrypto.nonce(1, 1), readFrame(in, 256 + 16))); }
+            catch (GeneralSecurityException e) { fail("Relay: invalid handshake"); s.close(); return; }
             DataInputStream ackIn = new DataInputStream(new java.io.ByteArrayInputStream(ack));
             if (ackIn.read() != 1) { fail("Relay: rejected"); s.close(); return; }
             int tlen = ackIn.readShort() & 0xffff;
@@ -126,11 +128,11 @@ public final class RelayClient {
             writer.start();
             Minecraft.getInstance().execute(() -> { PlayerController.INSTANCE.onPartyLeft(); PlayerController.INSTANCE.setBackend(this::send); });
 
-            long recvCtr = 1;
+            long recvCtr = 2;
             while (gen == generation.get()) {
-                byte[] frame = readFrame(in);
+                byte[] frame = readFrame(in, RelayCrypto.MAX_FRAME);
                 byte[] payload;
-                try { payload = RelayCrypto.decrypt(session, RelayCrypto.nonce(1, recvCtr), frame); }
+                try { payload = RelayCrypto.unpad(RelayCrypto.decrypt(session, RelayCrypto.nonce(1, recvCtr), frame)); }
                 catch (GeneralSecurityException e) { break; }
                 recvCtr++;
                 Minecraft.getInstance().execute(() -> ClientSync.dispatch(payload));
@@ -149,7 +151,7 @@ public final class RelayClient {
             while (gen == generation.get()) {
                 byte[] data = queue.take();
                 if (data.length == 0) return;
-                writeFrame(os, RelayCrypto.encrypt(session, RelayCrypto.nonce(0, sendCtr), data));
+                writeFrame(os, RelayCrypto.encrypt(session, RelayCrypto.nonce(0, sendCtr), RelayCrypto.pad(data)));
                 sendCtr++;
             }
         } catch (InterruptedException ignored) {
@@ -178,9 +180,9 @@ public final class RelayClient {
         os.flush();
     }
 
-    private static byte[] readFrame(DataInputStream in) throws IOException {
+    private static byte[] readFrame(DataInputStream in, int max) throws IOException {
         int len = in.readInt();
-        if (len < 0 || len > 1 << 20) throw new IOException("bad frame");
+        if (len < 0 || len > max) throw new IOException("bad frame");
         byte[] b = new byte[len];
         in.readFully(b);
         return b;

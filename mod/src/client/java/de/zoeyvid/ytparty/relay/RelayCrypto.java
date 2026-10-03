@@ -6,7 +6,6 @@ import javax.crypto.KeyAgreement;
 import javax.crypto.Mac;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -16,17 +15,21 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
+import java.util.Base64;
 
 final class RelayCrypto {
     static final SecureRandom RNG = new SecureRandom();
-    private static final byte[] SALT = "ytparty-relay-v1".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] SK_LABEL = "ytparty-sk-v2".getBytes(StandardCharsets.UTF_8);
+    static final int MAX_FRAME = 1 << 20;
+    static final int MAX_DATA = MAX_FRAME - 16 - 1;
     private static final byte[] X25519_SPKI_HEADER = x25519Header();
 
     private RelayCrypto() {}
 
-    static byte[] deriveKey(String password) {
-        return pbkdf2(password.getBytes(StandardCharsets.UTF_8), SALT, 600000, 32);
+    static byte[] parseKey(String s) {
+        try {
+            byte[] k = Base64.getUrlDecoder().decode(s.replaceAll("\\s", ""));
+            return k.length == 32 ? k : null;
+        } catch (IllegalArgumentException e) { return null; }
     }
 
     static byte[] nonce(int dir, long ctr) {
@@ -59,8 +62,17 @@ final class RelayCrypto {
         return KEM.getInstance("ML-KEM").newDecapsulator(priv).decapsulate(ct).getEncoded();
     }
 
-    static byte[] deriveSession(byte[] k, byte[] msg1, byte[] msg2, byte[] ssx, byte[] ssm) {
-        return hmac(k, SK_LABEL, msg1, msg2, ssx, ssm);
+    static byte[] pad(byte[] b) {
+        byte[] p = Arrays.copyOf(b, Math.min(Math.max(256, Integer.highestOneBit(b.length) << 1), MAX_DATA + 1));
+        p[b.length] = (byte) 0x80;
+        return p;
+    }
+
+    static byte[] unpad(byte[] b) throws GeneralSecurityException {
+        int i = b.length - 1;
+        while (i >= 0 && b[i] == 0) i--;
+        if (i < 0 || b[i] != (byte) 0x80) throw new GeneralSecurityException("bad padding");
+        return Arrays.copyOf(b, i);
     }
 
     private static byte[] tail(byte[] b, int n) { return Arrays.copyOfRange(b, b.length - n, b.length); }
@@ -78,33 +90,12 @@ final class RelayCrypto {
         return c.doFinal(in);
     }
 
-    private static byte[] hmac(byte[] key, byte[]... parts) {
+    static byte[] hmac(byte[] key, byte[]... parts) {
         try {
             Mac m = Mac.getInstance("HmacSHA256");
             m.init(new SecretKeySpec(key, "HmacSHA256"));
             for (byte[] p : parts) m.update(p);
             return m.doFinal();
-        } catch (GeneralSecurityException e) { throw new RuntimeException(e); }
-    }
-
-    private static byte[] pbkdf2(byte[] pw, byte[] salt, int iter, int dkLen) {
-        try {
-            Mac prf = Mac.getInstance("HmacSHA256");
-            prf.init(new SecretKeySpec(pw, "HmacSHA256"));
-            int hLen = prf.getMacLength(), blocks = (dkLen + hLen - 1) / hLen;
-            byte[] dk = new byte[blocks * hLen], block = new byte[4];
-            for (int b = 1; b <= blocks; b++) {
-                prf.reset();
-                prf.update(salt);
-                block[0] = (byte) (b >>> 24); block[1] = (byte) (b >>> 16); block[2] = (byte) (b >>> 8); block[3] = (byte) b;
-                prf.update(block);
-                byte[] u = prf.doFinal(), t = u.clone();
-                for (int i = 2; i <= iter; i++) { prf.reset(); u = prf.doFinal(u); for (int x = 0; x < hLen; x++) t[x] ^= u[x]; }
-                System.arraycopy(t, 0, dk, (b - 1) * hLen, hLen);
-            }
-            byte[] out = new byte[dkLen];
-            System.arraycopy(dk, 0, out, 0, dkLen);
-            return out;
         } catch (GeneralSecurityException e) { throw new RuntimeException(e); }
     }
 }

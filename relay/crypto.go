@@ -1,34 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
-	"crypto/pbkdf2"
 	"crypto/sha256"
 	"encoding/binary"
-	"log"
+	"math/bits"
 )
 
-const kdfSalt = "ytparty-relay-v1"
-const kdfIter = 600000
-const skLabel = "ytparty-sk-v2"
-
-func deriveKey(password string) []byte {
-	k, err := pbkdf2.Key(sha256.New, password, []byte(kdfSalt), kdfIter, 32)
-	if err != nil {
-		log.Fatal(err)
+func mac(key []byte, parts ...[]byte) []byte {
+	h := hmac.New(sha256.New, key)
+	for _, p := range parts {
+		h.Write(p)
 	}
-	return k
-}
-
-func deriveSession(k, msg1, msg2, ssx, ssm []byte) []byte {
-	h := hmac.New(sha256.New, k)
-	h.Write([]byte(skLabel))
-	h.Write(msg1)
-	h.Write(msg2)
-	h.Write(ssx)
-	h.Write(ssm)
 	return h.Sum(nil)
 }
 
@@ -45,4 +31,19 @@ func gcm(sk []byte) (cipher.AEAD, error) {
 		return nil, err
 	}
 	return cipher.NewGCM(blk)
+}
+
+func pad(b []byte) []byte {
+	p := make([]byte, min(max(256, 1<<bits.Len(uint(len(b)))), maxData+1))
+	copy(p, b)
+	p[len(b)] = 0x80
+	return p
+}
+
+func unpad(b []byte) ([]byte, bool) {
+	t := bytes.TrimRight(b, "\x00")
+	if len(t) == 0 || t[len(t)-1] != 0x80 {
+		return nil, false
+	}
+	return t[:len(t)-1], true
 }

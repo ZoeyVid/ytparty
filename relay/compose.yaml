@@ -15,4 +15,4 @@ services:
       - no-new-privileges:true
     environment:
       TZ: Europe/Berlin
-      YTPARTY_RELAY_PASSWORD:
+      YTPARTY_RELAY_PRIVATE_KEY:
