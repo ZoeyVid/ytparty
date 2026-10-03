@@ -77,6 +77,7 @@ func (p *party) skipFailed() bool {
 	if !p.repeatOne && p.curIndex < len(p.tracks)-1 {
 		p.curIndex++
 		p.generation++
+		p.trackGen = p.generation
 		p.anchor(0)
 		clear(p.failed)
 	} else if !p.paused {
@@ -368,7 +369,7 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 	case cAdd:
 		uri := rd.blob()
 		title := capChars(rd.blob(), 200)
-		if rd.bad || len(uri) == 0 || len(uri) > 1000 {
+		if rd.bad || len(uri) == 0 || len(capChars(uri, 1000)) != len(uri) {
 			return
 		}
 		if len(p.tracks) >= 500 {
@@ -439,7 +440,7 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		}
 	case cTrackFailed:
 		gen := rd.i32()
-		if rd.bad || gen != p.generation {
+		if rd.bad || gen < p.trackGen || gen > p.generation {
 			return
 		}
 		p.failed[tok] = true
@@ -459,7 +460,7 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 			if rd.bad {
 				return
 			}
-			if len(uri) == 0 || len(uri) > 1000 {
+			if len(uri) == 0 || len(capChars(uri, 1000)) != len(uri) {
 				continue
 			}
 			nt = append(nt, trackRef{id: p.nextTrackId, uri: uri, title: title, reqr: []byte(r.nameOf(tok))})
@@ -535,6 +536,7 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 	if p.generation != genBefore {
 		p.anchor(0)
 		clear(p.failed)
+		p.trackGen = p.generation
 	}
 	r.broadcast(p)
 }

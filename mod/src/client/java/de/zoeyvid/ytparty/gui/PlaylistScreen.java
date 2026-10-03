@@ -65,8 +65,7 @@ public final class PlaylistScreen extends Screen {
         }, "Add the URL to the playlist", left + 204, top, 38).active = canEdit;
         btn("Edit list\u2026", () -> this.minecraft.setScreenAndShow(new PlaylistEditScreen()), "Edit the whole playlist as a text list of URLs", left + 246, top, 74);
 
-        btn("SponsorBlock\u2026", () -> this.minecraft.setScreenAndShow(new SponsorBlockScreen()), "SponsorBlock segment-skip settings", left, top + 26, 120);
-        btn("Settings\u2026", () -> this.minecraft.setScreenAndShow(new HudScreen()), "HUD, video and other-site settings", left + 124, top + 26, 60);
+        btn("Settings\u2026", () -> this.minecraft.setScreenAndShow(new HudScreen()), "HUD, video, SponsorBlock and other-site settings", left, top + 26, 184);
         AbstractSliderButton vol = new AbstractSliderButton(left + 188, top + 26, 132, 20, Component.literal("Vol " + c.volume()), c.volume() / 200.0) {
             @Override protected void updateMessage() { setMessage(Component.literal("Vol " + (int) (value * 200))); }
             @Override protected void applyValue() { c.setVolume((int) (value * 200)); }
@@ -84,8 +83,8 @@ public final class PlaylistScreen extends Screen {
         btn("\u21E4", () -> seek(0), "Restart current track", left + 24, top + 78, 22).active = canEdit && !c.live();
         btn(c.paused() ? "\u25B6" : "\u23F8", c::togglePause, c.paused() ? "Play" : "Pause", left + 48, top + 78, 22).active = canEdit;
         btn("\u23ED", c::skip, "Skip to next track", left + 72, top + 78, 22).active = canEdit;
-        btn("Repeat: " + (c.repeatOne() ? "ON" : "OFF"), c::toggleRepeat, "Repeat the current track", left + 98, top + 78, 74).active = canEdit;
-        btn("Auto-remove: " + (c.autoRemovePlayed() ? "ON" : "OFF"), c::toggleAutoRemove, "Remove each track once it finishes playing", left + 176, top + 78, 120).active = canEdit;
+        btn("Repeat track: " + (c.repeatOne() ? "ON" : "OFF"), c::toggleRepeat, "Repeat the current track instead of playing the next one", left + 98, top + 78, 97).active = canEdit;
+        btn("Auto-remove: " + (c.autoRemovePlayed() ? "ON" : "OFF"), c::toggleAutoRemove, "Remove each track once it finishes playing", left + 199, top + 78, 97).active = canEdit;
         btn("\u2913", () -> {
             int idx = c.currentIndex();
             if (idx >= 0) { scrollOffset = Math.clamp(idx, 0, Math.max(0, c.playlist().size() - MAX_ROWS)); rebuildWidgets(); }

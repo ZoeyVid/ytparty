@@ -130,7 +130,7 @@ final class YtDlp {
     }
 
     private static String cookies(JsonObject format) {
-        return Stream.ofNullable(string(format, "cookies")).flatMap(cookies -> Stream.of(cookies.split("; (?!(?:Domain|Path|Expires|Version)=|Secure(?:;|$))"))).map(cookie -> cookie.replaceFirst("^([^=]*=)\"([^\"\\\\]*)\"(?=;|$)", "$1$2")).filter(cookie -> cookie.matches("[^\"\r\n]*")).collect(Collectors.joining("\n"));
+        return Stream.ofNullable(string(format, "cookies")).flatMap(cookies -> Stream.of(cookies.split("; (?!(?:Domain|Path|Expires|Version)=|Secure(?:;|$))"))).map(cookie -> Pattern.compile("^([^=]*=)\"((?:[^\"\\\\]|\\\\.)*)\"(?=;|$)").matcher(cookie).replaceFirst(quoted -> Matcher.quoteReplacement(Pattern.compile("\\\\(?:([0-3][0-7]{2})|(.))").matcher(quoted.group(2)).replaceAll(escape -> Matcher.quoteReplacement(escape.group(1) == null ? escape.group(2) : Character.toString(Integer.parseInt(escape.group(1), 8)))).transform(value -> value.matches("[^;\"\r\n\0]*") ? quoted.group(1) + value : quoted.group())))).filter(cookie -> cookie.matches("[^\"\r\n]*")).collect(Collectors.joining("\n"));
     }
 
     static Matcher probe(String url, String headers, String cookies, String... options) throws Exception {

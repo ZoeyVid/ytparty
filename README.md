@@ -68,6 +68,7 @@ relay; each one's server backend is simply ignored while the relay is connected.
    length can't be read is shown as LIVE too (not seekable or synced, no video), but it ends normally,
    also on a dropout unless its server sends it chunked (as some radios without Icecast headers do).
    A livestream's video that starts later (turned on or resized mid‑stream) can be a few seconds off.
+   The latest ffmpeg and yt-dlp are expected; older versions can fail.
 2. **To sync with others**, either:
    - **Relay:** enter host / port and, as the password, the relay's public key (from its log) in the
      in‑game *Relay* screen and connect. Run your own

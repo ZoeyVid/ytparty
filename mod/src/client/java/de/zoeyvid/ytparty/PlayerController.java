@@ -48,7 +48,8 @@ public final class PlayerController {
     private List<String> relayPlayers = List.of();
     private byte partySbFlags = SponsorBlock.FLAG_ALL;
     private boolean repeatOne = false;
-    private volatile int partyGeneration;
+    private int partyGeneration;
+    private volatile int trackGeneration;
     private int nextLocalId = 1;
     private List<SponsorBlock.Segment> segments = List.of();
     private String segmentsUri = "";
@@ -56,7 +57,7 @@ public final class PlayerController {
     private boolean carryPaused;
     private long creatingUntil;
 
-    private PlayerController() { sink = localSink; audio.setOnEnd(() -> onTrackEnded(partyGeneration)); audio.setOnError(reason -> onTrackFailed(partyGeneration, reason)); }
+    private PlayerController() { sink = localSink; audio.setOnEnd(() -> onTrackEnded(trackGeneration)); audio.setOnError(reason -> onTrackFailed(trackGeneration, reason)); }
 
     public void setBackend(Sink s) { backend = s; sink = localSink; }
 
@@ -150,11 +151,12 @@ public final class PlayerController {
 
     public void seekBy(long ms) { if (ctrl()) sink.send(SyncProtocol.setPosition(audio.position() + ms)); }
 
-    public void applyRemoteSeek(long ms, int generation) { audio.setPosition(ms); partyGeneration = generation; }
+    public void applyRemoteSeek(long ms, int generation) { audio.setPosition(ms); partyGeneration = trackGeneration = generation; }
 
     public void seekTo(long ms) { if (ctrl()) sink.send(SyncProtocol.setPosition(ms)); }
 
     public long position() { return audio.position(); }
+    public long elapsed() { return audio.elapsed(); }
     public long duration() { return audio.duration(); }
     public boolean live() { return audio.live(); }
     public MusicPlayer.Video video(int height) { return audio.video(height); }
@@ -262,6 +264,7 @@ public final class PlayerController {
             else if (currentIndex != carryIndex) { sink.send(SyncProtocol.setTrack(carried.id())); return; }
             else {
                 sink.send(SyncProtocol.reanchor(partyGeneration, audio.position()));
+                trackGeneration = partyGeneration;
                 if (carryPaused) sink.send(SyncProtocol.setPaused(true));
                 carryIndex = -1;
                 return;
@@ -269,13 +272,14 @@ public final class PlayerController {
         }
         Track t = playlist.get(currentIndex);
         if (t == null) { loadedUri = null; segments = List.of(); segmentsUri = ""; audio.stop(); return; }
-        if (!t.uri().equals(loadedUri)) { loadedUri = t.uri(); trackChangedAt = System.currentTimeMillis(); loadSegments(t.uri()); audio.playIdentifier(t.uri(), title -> {}); }
+        if (!t.uri().equals(loadedUri)) { loadedUri = t.uri(); trackChangedAt = System.currentTimeMillis(); loadSegments(t.uri()); audio.stop(); trackGeneration = partyGeneration; audio.playIdentifier(t.uri(), title -> {}); }
         else if (!joined && partyGeneration != prevGeneration) { trackChangedAt = System.currentTimeMillis(); audio.repeatCurrent(); }
         if (joined) audio.setPosition(s.elapsed());
+        trackGeneration = partyGeneration;
         audio.setPaused(paused);
     }
 
-    public void onPartyLeft() { carryIndex = -1; creatingUntil = 0; myLevel = MANAGE; isPublic = false; partyGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }
+    public void onPartyLeft() { carryIndex = -1; creatingUntil = 0; myLevel = MANAGE; isPublic = false; partyGeneration = trackGeneration = 0; members = new ArrayList<>(); partyId = ""; syncLocalParty(); sink = localSink; }
 
     private void syncLocalParty() {
         Party p = localSink.party;
@@ -288,7 +292,7 @@ public final class PlayerController {
         p.autoRemovePlayed = autoRemovePlayed;
         p.repeatOne = repeatOne;
         p.sbFlags = ClientConfig.sbFlags();
-        p.generation = partyGeneration;
+        p.generation = p.trackGeneration = partyGeneration;
         p.anchor(audio.position());
     }
 

@@ -193,7 +193,8 @@ public final class ChannelBridge implements PluginMessageListener {
                 break;
             }
             case ServerProtocol.C2S_TRACK_FAILED: {
-                if (d.readInt() != p.generation) return;
+                int gen = d.readInt();
+                if (gen < p.trackGeneration || gen > p.generation) return;
                 p.failed.add(player.getUniqueId());
                 if (skipFailed(p)) broadcast(p);
                 return;
@@ -235,14 +236,14 @@ public final class ChannelBridge implements PluginMessageListener {
             default: return;
         }
         if (p.curTrackId() != oldCur) p.generation++;
-        if (p.generation != genBefore) { p.anchor(0); p.failed.clear(); }
+        if (p.generation != genBefore) { p.anchor(0); p.failed.clear(); p.trackGeneration = p.generation; }
         broadcast(p);
     }
 
     private static boolean skipFailed(Party p) {
         if (p.currentIndex < 0) return false;
         for (UUID u : p.members.keySet()) if (p.canManage(u) && !p.failed.contains(u)) return false;
-        if (!p.repeatOne && p.currentIndex < p.tracks.size() - 1) { p.currentIndex++; p.generation++; p.anchor(0); p.failed.clear(); }
+        if (!p.repeatOne && p.currentIndex < p.tracks.size() - 1) { p.currentIndex++; p.trackGeneration = ++p.generation; p.anchor(0); p.failed.clear(); }
         else if (!p.paused) { p.paused = true; p.pausedSince = System.currentTimeMillis(); }
         return true;
     }

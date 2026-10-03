@@ -33,7 +33,7 @@ public final class Party {
     public byte sbFlags = 0x0F;
     public boolean repeatOne = false;
     public int nextTrackId = 1;
-    public int generation = 0;
+    public int generation = 0, trackGeneration = 0;
     public long trackStart, pausedAccum, pausedSince;
 
     public void anchor(long pos) {

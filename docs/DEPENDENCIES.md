@@ -34,6 +34,7 @@ What each component pulls in and why. Exact versions are pinned in the build fil
   `%USERPROFILE%\scoop\shims` and `%ChocolateyInstall%\bin` on Windows. The path found is
   remembered and looked up again when the program can't be started any more; a missing program is
   named in the error. A game started from a Flatpak launcher can't see programs installed on the host.
+  The latest ffmpeg and yt-dlp are expected; older versions can fail.
 - Crypto is JDK standard library only (X25519, ML‑KEM via the built‑in KEM API, AES‑GCM, HMAC‑SHA256) — no library.
 
 ## Plugin (`plugin/`)

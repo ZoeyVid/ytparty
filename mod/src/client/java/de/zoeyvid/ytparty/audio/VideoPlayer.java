@@ -3,9 +3,11 @@ package de.zoeyvid.ytparty.audio;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
@@ -15,24 +17,26 @@ public final class VideoPlayer {
 
     public interface Sink { void accept(byte[] pixels, int width, int height); }
 
-    private final LongSupplier position;
+    private final LongSupplier position, elapsed;
     private final Runnable onFailure;
     private volatile Session session;
-    private String failedUrl, broken;
+    private final Set<String> broken = new HashSet<>();
+    private String failedUrl;
 
-    public VideoPlayer(LongSupplier position, Runnable onFailure) {
+    public VideoPlayer(LongSupplier position, LongSupplier elapsed, Runnable onFailure) {
         this.position = position;
+        this.elapsed = elapsed;
         this.onFailure = onFailure;
         Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
     }
 
     public void frame(MusicPlayer.Video video, boolean live, int seeks, int width, int height, Sink sink) throws IOException {
-        if (session != null && session.failed && !session.url.equals(failedUrl)) { failedUrl = session.url; if (video != null && video.fallback() != null && video.url().equals(failedUrl)) broken = failedUrl; else onFailure.run(); }
-        if (video != null && video.url().equals(broken)) video = video.fallback();
+        if (session != null && session.failed && !session.url.equals(failedUrl)) { failedUrl = session.url; if (video != null && video.fallback() != null && video.url().equals(failedUrl)) broken.add(MusicPlayer.origin(failedUrl)); else onFailure.run(); }
+        if (video != null && video.fallback() != null && broken.contains(MusicPlayer.origin(video.url()))) video = video.fallback();
         String url = video == null ? null : video.url();
         long restart = session != null && session.url.equals(url) && session.seeks == seeks ? session.restart : 0;
         if (session != null && (restart > 0 || session.closed || session.failed && System.nanoTime() - session.started > 5_000_000_000L || !session.url.equals(url) || session.seeks != seeks || (session.width != width || session.height != height) && System.nanoTime() - session.started > 500_000_000L)) stop();
-        if (session == null && url != null) session = new Session(url, video.headers(), video.cookies(), video.hls(), live, seeks, width, height, position.getAsLong() + restart, restart);
+        if (session == null && url != null) { long now = position.getAsLong(), start = live ? Math.max(elapsed.getAsLong(), now) : now + restart; session = new Session(url, video.headers(), video.cookies(), video.hls(), live, seeks, width, height, start, start - now); }
         if (session == null) return;
         session.polled = System.nanoTime();
         byte[] pixels = session.latest.getAndSet(null);

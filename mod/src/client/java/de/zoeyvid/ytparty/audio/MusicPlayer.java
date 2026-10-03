@@ -68,7 +68,7 @@ public final class MusicPlayer {
     private Consumer<String> onError = reason -> {};
     private AudioTrack lastTrack;
     private volatile boolean decodeFinished;
-    private volatile long seekTarget = -1, pendingSeek = -1, seekedAt, timecode, playedUntil;
+    private volatile long seekTarget = -1, pendingSeek = -1, seekedAt, timecode, playedUntil, skipUntil = -1;
     private final AtomicInteger seeks = new AtomicInteger();
 
     private static final AtomicReferenceFieldUpdater<MusicPlayer, String> PLAYING = AtomicReferenceFieldUpdater.newUpdater(MusicPlayer.class, String.class, "playing");
@@ -79,6 +79,7 @@ public final class MusicPlayer {
     private static volatile List<String> allowedSites = List.of();
     private volatile String playing;
     private volatile Future<?> loading;
+    private volatile Thread loader;
     private boolean mayRetry;
 
     public MusicPlayer() {
@@ -86,11 +87,12 @@ public final class MusicPlayer {
         manager.setFrameBufferDuration(1000);
         manager.setPlayerCleanupThreshold(Long.MAX_VALUE);
         Configurator.setLevel(LocalAudioTrackExecutor.class, Level.OFF);
+        Configurator.setLevel("org.apache.http.impl.execchain.RetryExec", Level.WARN);
         if (!SLIM) manager.registerSourceManager(new HttpAudioSourceManager(new MediaContainerRegistry(MediaContainer.asList().stream().filter(probe -> probe != MediaContainer.OGG.probe && probe != MediaContainer.FLAC.probe).toList())));
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {
                 if (reason != AudioTrackEndReason.FINISHED && reason != AudioTrackEndReason.LOAD_FAILED) return;
-                boolean played = ((InternalAudioTrack) t).getActiveExecutor().getAudioBuffer().hasReceivedFrames(), early = played && mayRetry && seekTarget < 0 && t.isSeekable() && t.getPosition() < t.getDuration() - 1000;
+                boolean played = ((InternalAudioTrack) t).getActiveExecutor().getAudioBuffer().hasReceivedFrames(), early = played && mayRetry && seekTarget < 0 && t.isSeekable() && t.getPosition() < t.getDuration() - 1000 && !(t instanceof FfmpegAudioTrack f && !f.hls && !f.ranges);
                 if (!(t instanceof FfmpegAudioTrack) && t.getUserData() instanceof Media media && media.track() != null && (reason == AudioTrackEndReason.LOAD_FAILED || (seekTarget >= 0 ? seekTarget : t.getPosition()) < t.getDuration() - 1000) && !(played && t.getPosition() == seekTarget)) { if (seekTarget < 0) seekedAt = System.nanoTime(); if (played || seekTarget >= 0) pendingSeek = seekTarget >= 0 ? seekTarget : t.getPosition() - out.bufferedAhead(); start(ffmpeg(media), media, null); }
                 else if (reason == AudioTrackEndReason.FINISHED && (played || seekTarget >= 0 && !(t instanceof FfmpegAudioTrack f && f.failed)) && !t.getInfo().isStream && !early) { decodeFinished = true; if (played && seekTarget >= 0 && t.getPosition() == seekTarget) setPosition(seekTarget); }
                 else { if (played) mayRetry = true; if (early) { seekedAt = playedUntil; pendingSeek = t.getPosition(); } failed(playing, t instanceof FfmpegAudioTrack && !Tools.installed("ffmpeg") ? (SLIM ? NEEDS_FFMPEG : (t.getInfo().isStream ? "Livestreams" : "Other sites") + " need ffmpeg installed") : null); }
@@ -145,7 +147,7 @@ public final class MusicPlayer {
 
     private static String lowerOrigin(String url) { String origin = origin(url); return origin.toLowerCase(Locale.ROOT) + url.substring(origin.length()); }
 
-    private static String origin(String url) { return url.replaceFirst("(?s)([^/?#]*(//[^/?#]*)?).*", "$1"); }
+    static String origin(String url) { return url.replaceFirst("(?s)([^/?#]*(//[^/?#]*)?).*", "$1"); }
 
     private static boolean isYoutube(String url) throws Exception {
         return ServiceList.YouTube.getStreamLHFactory().acceptUrl(withoutList(url)) || ServiceList.YouTube.getPlaylistLHFactory().acceptUrl(url);
@@ -244,7 +246,7 @@ public final class MusicPlayer {
         if (ArdMediathek.id(identifier) != null && ArdMediathek.geoBlocked(media.url())) { failed(identifier, null); return; }
         if (!identifier.equals(playing)) return;
         if (media.track() instanceof FfmpegAudioTrack track && (SLIM || !track.isSeekable() || track.hls || FFMPEG.contains(media.identifier()))) { start(track.makeClone(), media, onTitle); return; }
-        Thread.ofVirtual().start(() -> manager.loadItemSync(media.url(), new AudioLoadResultHandler() {
+        loader = Thread.ofVirtual().start(() -> manager.loadItemSync(media.url(), new AudioLoadResultHandler() {
             public void trackLoaded(AudioTrack track) { if (identifier.equals(playing)) start(media.track() == null || Math.abs(track.getDuration() - media.track().getDuration()) < 5000 ? track : ffmpeg(media), media, onTitle); }
             public void playlistLoaded(AudioPlaylist list) { if (list.getTracks().isEmpty()) noMatches(); else trackLoaded(pick(list)); }
             public void noMatches() { if (identifier.equals(playing)) { if (media.track() != null) start(ffmpeg(media), media, onTitle); else failed(identifier, null); } }
@@ -266,6 +268,7 @@ public final class MusicPlayer {
 
     private void begin(AudioTrack track) {
         decodeFinished = false;
+        skipUntil = -1;
         playedUntil = System.nanoTime();
         seekTarget = -1;
         out.requestFlush();
@@ -307,9 +310,10 @@ public final class MusicPlayer {
         AudioTrack t = player.getPlayingTrack();
         return Math.max(0, (t != null ? t.getPosition() : decodeFinished ? timecode : 0) - out.bufferedAhead());
     }
+    public long elapsed() { return player.getPlayingTrack() instanceof FfmpegAudioTrack t ? (System.nanoTime() - t.began) / 1_000_000 : 0; }
     public long duration() { AudioTrack t = player.getPlayingTrack(); if (t == null && decodeFinished) t = lastTrack; return t != null ? t.getDuration() : 0; }
 
-    public void setPaused(boolean paused) { player.setPaused(paused); out.requestPause(paused); }
+    public void setPaused(boolean paused) { if (!paused && player.isPaused()) seekedAt = System.nanoTime(); player.setPaused(paused); out.requestPause(paused); }
     public boolean isPaused() { return player.isPaused(); }
     public boolean seeking() { return seekTarget >= 0; }
     public boolean live() { AudioTrack t = player.getPlayingTrack(); if (t == null && decodeFinished) t = lastTrack; return t != null && !t.isSeekable(); }
@@ -319,7 +323,7 @@ public final class MusicPlayer {
         NavigableMap<Integer, Video> videos = t != null ? ((Media) t.getUserData()).videos() : Collections.emptyNavigableMap();
         return videos.isEmpty() ? null : Objects.requireNonNullElse(videos.ceilingEntry(height - height / 10), videos.lastEntry()).getValue();
     }
-    public void stop() { pendingSeek = -1; halt(); playing = null; }
+    public void stop() { pendingSeek = -1; halt(); playing = null; if (loader != null) loader.interrupt(); }
     private void halt() { decodeFinished = false; seekTarget = -1; player.stopTrack(); out.requestFlush(); }
     public void setVolume(int v) { out.setGain(Math.clamp(v, 0, 200) / 100f); }
 
@@ -335,8 +339,8 @@ public final class MusicPlayer {
                 long target = seekTarget, tc = frame.getTimecode();
                 boolean stale = has && target >= 0 && Math.abs(tc - target) > 60 && (tc < target || tc > target + 5000 || Math.abs(tc - timecode - FORMAT.frameDuration()) <= 1);
                 if (has) timecode = tc;
-                if (has && seekTarget >= 0 && !stale) seekTarget = -1;
-                if (has && !stale) { out.write(buf, frame.getDataLength()); if (out.bufferedAhead() > 200) playedUntil = System.nanoTime() + out.bufferedAhead() * 1_000_000L; }
+                if (has && seekTarget >= 0 && !stale) { seekTarget = -1; skipUntil = player.isPaused() ? -1 : tc + (System.nanoTime() - seekedAt) / 1_000_000; }
+                if (has && !stale && tc >= skipUntil) { out.write(buf, frame.getDataLength()); if (out.bufferedAhead() > 200) playedUntil = System.nanoTime() + out.bufferedAhead() * 1_000_000L; }
                 if (decodeFinished && out.bufferedAhead() == 0) { decodeFinished = false; onEnd.run(); }
                 if (!has) sleep();
             } catch (Exception ignored) { sleep(); }

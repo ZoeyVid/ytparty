@@ -24,7 +24,8 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
     final boolean hls;
     private final boolean reconnect;
     private volatile long start;
-    volatile boolean failed;
+    volatile long began = System.nanoTime();
+    volatile boolean failed, ranges = true;
 
     FfmpegAudioTrack(AudioTrackInfo info, String headers, String cookies, boolean hls, boolean reconnect) {
         super(info);
@@ -40,9 +41,9 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
         AudioPipeline pipeline = AudioPipelineFactory.create(executor.getProcessingContext(), new PcmFormat(format.channelCount, format.sampleRate));
         try {
             executor.executeProcessingLoop(() -> {
-                if (!decode(pipeline, format, true) && start < trackInfo.length - 1000) {
+                if (!decode(pipeline, format, hls || start == 0 || YtDlp.ranges(trackInfo.uri)) && start < trackInfo.length - 1000) {
                     if (start == 0) throw new IOException("ffmpeg returned no audio");
-                    if (hls || !YtDlp.ranges(trackInfo.uri)) decode(pipeline, format, false);
+                    if (hls) decode(pipeline, format, false);
                 }
                 while (executor.getAudioBuffer().getLastInputTimecode() != null) Thread.sleep(10);
             }, position -> { start = position; pipeline.seekPerformed(position, position); });
@@ -55,13 +56,14 @@ final class FfmpegAudioTrack extends BaseAudioTrack {
     public boolean isSeekable() { return trackInfo.length != Units.DURATION_MS_UNKNOWN; }
 
     private boolean decode(AudioPipeline pipeline, AudioDataFormat format, boolean inputSeek) throws Exception {
-        List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-loglevel", "error", "-protocol_whitelist", PROTOCOLS, "-reconnect", "1", "-reconnect_streamed", reconnect ? "1" : "0", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "5xx", "-reconnect_delay_max", "5", "-rw_timeout", "10000000", "-headers", headers, "-cookies", cookies));
+        List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-loglevel", "error", "-protocol_whitelist", PROTOCOLS, "-reconnect", "1", "-reconnect_streamed", reconnect ? "1" : "0", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "5xx", "-reconnect_delay_max", "5", "-rw_timeout", hls || !reconnect && !(ranges = YtDlp.ranges(trackInfo.uri)) ? "10000000" : "3000000", "-headers", headers, "-cookies", cookies));
         if (hls) command.addAll(List.of("-http_seekable", "0"));
         if (start > 0 && inputSeek) command.addAll(List.of("-ss", start + "ms", "-copyts", "-start_at_zero"));
         command.addAll(List.of("-i", trackInfo.uri));
         if (start > 0 && !inputSeek) command.addAll(List.of("-ss", start + "ms"));
         command.addAll(List.of("-vn", "-sn", "-dn", "-f", "s16le", "-ac", Integer.toString(format.channelCount), "-ar", Integer.toString(format.sampleRate), "pipe:1"));
         Process process = Tools.start(new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD));
+        began = System.nanoTime();
         try (InputStream in = process.getInputStream()) {
             byte[] buffer = new byte[format.totalSampleCount() * 2];
             boolean received = false;

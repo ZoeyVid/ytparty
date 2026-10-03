@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class VideoHud implements HudElement {
-    private final VideoPlayer player = new VideoPlayer(PlayerController.INSTANCE::position, () -> ClientSync.message("Couldn't load the video"));
+    private final VideoPlayer player = new VideoPlayer(PlayerController.INSTANCE::position, PlayerController.INSTANCE::elapsed, () -> ClientSync.message("Couldn't load the video"));
     private DynamicTexture texture;
     private String url;
 

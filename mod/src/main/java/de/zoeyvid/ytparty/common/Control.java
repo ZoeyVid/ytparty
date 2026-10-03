@@ -63,7 +63,8 @@ public final class Control {
                 else p.currentIndex = -1;
             }
             case Opcodes.C2S_TRACK_FAILED -> {
-                if (d.readInt() != p.generation) return NONE;
+                int gen = d.readInt();
+                if (gen < p.trackGeneration || gen > p.generation) return NONE;
                 p.failed.add(sender);
                 return skipFailed(p) ? STATE : NONE;
             }
@@ -101,13 +102,13 @@ public final class Control {
             default -> { return NONE; }
         }
         if (p.curTrackId() != oldCur) p.generation++;
-        if (p.generation != genBefore) { p.anchor(0); p.failed.clear(); }
+        if (p.generation != genBefore) { p.anchor(0); p.failed.clear(); p.trackGeneration = p.generation; }
         return STATE;
     }
 
     public static boolean skipFailed(Party p) {
         if (p.currentIndex < 0 || p.members.keySet().stream().anyMatch(u -> p.canManage(u) && !p.failed.contains(u))) return false;
-        if (!p.repeatOne && p.currentIndex < p.tracks.size() - 1) { p.currentIndex++; p.generation++; p.anchor(0); p.failed.clear(); }
+        if (!p.repeatOne && p.currentIndex < p.tracks.size() - 1) { p.currentIndex++; p.trackGeneration = ++p.generation; p.anchor(0); p.failed.clear(); }
         else if (!p.paused) { p.paused = true; p.pausedSince = System.currentTimeMillis(); }
         return true;
     }

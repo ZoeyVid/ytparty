@@ -67,7 +67,7 @@ column below is the minimum required.
 | 18 | SET_PLAYLIST | `i32 count`, then `str uri, str title` × count | MANAGE | replace the whole playlist in one frame |
 | 19 | LIST_PLAYERS | — | any | request the online‑player list → `PLAYER_LIST` |
 | 20 | PART | `i32 offset, i32 total`, then bytes | any | a piece of a frame too big for one message (see Transport) |
-| 21 | TRACK_FAILED | `i32 gen` | MANAGE | you couldn't play the current track (ignored unless `gen` is current). Once every manager has reported it (since the track last changed or repeated), the backend skips it without removing it, or pauses on it with repeat on or at the end of the list; re‑checked when a manager leaves or loses MANAGE |
+| 21 | TRACK_FAILED | `i32 gen` | MANAGE | you couldn't play the current track (ignored if the track changed or repeated after `gen`; a seek in between doesn't matter). Once every manager has reported it (since the track last changed or repeated), the backend skips it without removing it, or pauses on it with repeat on or at the end of the list; re‑checked when a manager leaves or loses MANAGE |
 
 ## Server → client
 
