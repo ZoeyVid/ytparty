@@ -36,7 +36,7 @@ public final class VideoPlayer {
         String url = video == null ? null : video.url();
         long restart = session != null && session.url.equals(url) && session.seeks == seeks ? session.restart : 0;
         if (session != null && (restart > 0 || session.closed || session.failed && System.nanoTime() - session.started > 5_000_000_000L || !session.url.equals(url) || session.seeks != seeks || (session.width != width || session.height != height) && System.nanoTime() - session.started > 500_000_000L)) stop();
-        if (session == null && url != null) { long now = position.getAsLong(), start = live ? Math.max(elapsed.getAsLong(), now) : now + restart; session = new Session(url, video.headers(), video.cookies(), video.hls(), live, seeks, width, height, start, start - now); }
+        if (session == null && url != null) { long now = position.getAsLong(), start = live && now > 0 ? Math.max(elapsed.getAsLong(), now) : now + restart; session = new Session(url, video.headers(), video.cookies(), video.hls(), live, seeks, width, height, start, start - now); }
         if (session == null) return;
         session.polled = System.nanoTime();
         byte[] pixels = session.latest.getAndSet(null);

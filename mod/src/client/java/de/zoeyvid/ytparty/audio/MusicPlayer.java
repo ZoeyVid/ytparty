@@ -1,6 +1,7 @@
 package de.zoeyvid.ytparty.audio;
 
 import com.sedmelluq.discord.lavaplayer.container.MediaContainer;
+import com.sedmelluq.discord.lavaplayer.container.MediaContainerDetection;
 import com.sedmelluq.discord.lavaplayer.container.MediaContainerRegistry;
 import com.sedmelluq.discord.lavaplayer.format.AudioDataFormat;
 import com.sedmelluq.discord.lavaplayer.format.StandardAudioDataFormats;
@@ -54,6 +55,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 public final class MusicPlayer {
     private static final AudioDataFormat FORMAT = StandardAudioDataFormats.COMMON_PCM_S16_LE;
@@ -76,6 +78,7 @@ public final class MusicPlayer {
     private static final ExecutorService RESOLVER = executor("ytparty-resolve"), ADDER = executor("ytparty-add");
     private static volatile boolean newPipeReady;
     private static final Map<String, Media> RESOLVED = new ConcurrentHashMap<>();
+    private static final Logger HTTP_RETRIES = Logger.getLogger("org.apache.http.impl.execchain.RetryExec");
     static final Set<String> FFMPEG = ConcurrentHashMap.newKeySet();
     private static volatile List<String> allowedSites = List.of();
     private volatile String playing;
@@ -88,7 +91,9 @@ public final class MusicPlayer {
         manager.setFrameBufferDuration(1000);
         manager.setPlayerCleanupThreshold(Long.MAX_VALUE);
         Configurator.setLevel(LocalAudioTrackExecutor.class, Level.OFF);
-        Configurator.setLevel("org.apache.http.impl.execchain.RetryExec", Level.WARN);
+        Configurator.setLevel(DefaultAudioPlayerManager.class, Level.ERROR);
+        Configurator.setLevel(MediaContainerDetection.class, Level.ERROR);
+        HTTP_RETRIES.setLevel(java.util.logging.Level.WARNING);
         if (!SLIM) manager.registerSourceManager(new HttpAudioSourceManager(new MediaContainerRegistry(MediaContainer.asList().stream().filter(probe -> probe != MediaContainer.OGG.probe && probe != MediaContainer.FLAC.probe).toList())));
         player.addListener(new AudioEventAdapter() {
             @Override public void onTrackEnd(AudioPlayer p, AudioTrack t, AudioTrackEndReason reason) {

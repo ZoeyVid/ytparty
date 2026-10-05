@@ -14,7 +14,7 @@ the system `ffmpeg` decodes in a child process, paced by the local audio positio
 involvement). Livestreams are decoded by `ffmpeg` too, into lavaplayer's pipeline (`FfmpegAudioTrack`);
 a livestream isn't seekable, so every client plays it at its own live point. ffmpeg bridges short drops
 itself (`-reconnect*`); a live track that still ends is handled like a failed one and resolved once
-more (a seekable track that breaks off over a second early too, continuing where it broke off), so a
+more (a seekable track that breaks off over a second early too, continuing where it broke off, unless its server ignores `Range`), so a
 longer outage recovers or shows an error, and a stream that really ended can replay its tail
 once before the playlist moves on. Allow‑listed other sites are resolved by the system `yt-dlp` and
 played by lavaplayer first; livestreams, HLS, files of unknown length, more than two channels (per

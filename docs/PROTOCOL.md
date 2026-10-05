@@ -35,7 +35,9 @@ single source of truth in `common/Opcodes.java`.
 The relay rejects a frame whose field is longer than its limit: `name` 16 bytes, party `id` 8 bytes.
 At login it also checks the name against Vanilla's rule (1–16 printable ASCII characters, no space),
 the UUID against its 36‑character form and the token against 24 bytes, and answers anything else with
-a rejection. A `uri` over 1000 bytes is ignored, a `title` is cut to 200 characters.
+a rejection. A `uri` over 1000 characters (UTF‑16 units, as Java counts them) is ignored, a `title`
+is cut to 200 characters, and a frame whose `uri` or `title` isn't valid modified‑UTF‑8 is dropped,
+as on the Java backends.
 
 ## Permission levels
 

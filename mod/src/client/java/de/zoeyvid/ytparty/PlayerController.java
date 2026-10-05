@@ -261,7 +261,7 @@ public final class PlayerController {
             if (s.tracks().isEmpty()) return;
             Track carried = playlist.get(carryIndex);
             if (carried == null || !carried.uri().equals(loadedUri)) carryIndex = -1;
-            else if (currentIndex != carryIndex) { sink.send(SyncProtocol.setTrack(carried.id())); return; }
+            else if (currentIndex != carryIndex) { trackGeneration = partyGeneration + 1; sink.send(SyncProtocol.setTrack(carried.id())); return; }
             else {
                 sink.send(SyncProtocol.reanchor(partyGeneration, audio.position()));
                 trackGeneration = partyGeneration;

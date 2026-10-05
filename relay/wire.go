@@ -71,6 +71,28 @@ func (r *rdr) str(max int) string {
 	}
 	return string(b)
 }
+func (r *rdr) utf() []byte {
+	b := r.blob()
+	for i := 0; i < len(b); i++ {
+		n := 0
+		switch b[i] >> 4 {
+		case 8, 9, 10, 11, 15:
+			r.bad = true
+			return nil
+		case 12, 13:
+			n = 1
+		case 14:
+			n = 2
+		}
+		for ; n > 0; n-- {
+			if i++; i == len(b) || b[i]&0xC0 != 0x80 {
+				r.bad = true
+				return nil
+			}
+		}
+	}
+	return b
+}
 
 type wtr struct{ b []byte }
 

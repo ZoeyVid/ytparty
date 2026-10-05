@@ -367,8 +367,8 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 	genBefore := p.generation
 	switch int(op) {
 	case cAdd:
-		uri := rd.blob()
-		title := capChars(rd.blob(), 200)
+		uri := rd.utf()
+		title := capChars(rd.utf(), 200)
 		if rd.bad || len(uri) == 0 || len(capChars(uri, 1000)) != len(uri) {
 			return
 		}
@@ -455,8 +455,8 @@ func (r *relay) control(tok string, op byte, rd *rdr) {
 		}
 		nt := make([]trackRef, 0, n)
 		for range n {
-			uri := rd.blob()
-			title := capChars(rd.blob(), 200)
+			uri := rd.utf()
+			title := capChars(rd.utf(), 200)
 			if rd.bad {
 				return
 			}
