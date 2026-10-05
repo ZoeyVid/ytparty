@@ -28,6 +28,7 @@ import org.schabi.newpipe.extractor.ServiceList;
 import org.schabi.newpipe.extractor.playlist.PlaylistInfo;
 import org.schabi.newpipe.extractor.services.youtube.ItagItem;
 import org.schabi.newpipe.extractor.stream.AudioStream;
+import org.schabi.newpipe.extractor.stream.AudioTrackType;
 import org.schabi.newpipe.extractor.stream.DeliveryMethod;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
 import org.schabi.newpipe.extractor.stream.StreamInfoItem;
@@ -176,13 +177,9 @@ public final class MusicPlayer {
     private static void forget(String identifier) { RESOLVED.remove(identifier); }
 
     private static AudioStream bestAudio(StreamInfo info) throws Unplayable {
-        AudioStream best = null;
-        for (AudioStream stream : info.getAudioStreams()) {
-            if (stream.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP || stream.getContent() == null || stream.getContent().isBlank()) continue;
-            if (best == null || stream.getAverageBitrate() > best.getAverageBitrate()) best = stream;
-        }
-        if (best == null) throw new Unplayable("This YouTube video has no playable audio stream");
-        return best;
+        return info.getAudioStreams().stream().filter(stream -> stream.getDeliveryMethod() == DeliveryMethod.PROGRESSIVE_HTTP && stream.getContent() != null && !stream.getContent().isBlank())
+            .max(Comparator.comparing((AudioStream stream) -> stream.getAudioTrackType() == AudioTrackType.ORIGINAL).thenComparingInt(AudioStream::getAverageBitrate))
+            .orElseThrow(() -> new Unplayable("This YouTube video has no playable audio stream"));
     }
 
     private static NavigableMap<Integer, Video> videoUrls(StreamInfo info) {
