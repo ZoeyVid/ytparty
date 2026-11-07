@@ -12,7 +12,7 @@ services:
     cap_drop:
       - ALL
     security_opt:
-      - no-new-privileges:true
+      - no-new-privileges=true
     environment:
       TZ: Europe/Berlin
       YTPARTY_RELAY_PRIVATE_KEY:
